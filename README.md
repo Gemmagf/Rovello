@@ -88,3 +88,8 @@ Mapa interactiu amb Leaflet/Mapbox.
 Comunitat d’usuaris amb fotos compartides.
 Recomanacions personalitzades segons l’historial.
 Afegir idiomes
+
+## Fonts, inspiració, codi, dades 
+https://www.kaggle.com/datasets/zlatan599/mushroom1
+https://www.kaggle.com/code/chitradas/mushroom-species-high-quality-inference/notebook
+
