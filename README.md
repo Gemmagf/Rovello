@@ -92,4 +92,5 @@ Afegir idiomes
 ## Fonts, inspiració, codi, dades 
 https://www.kaggle.com/datasets/zlatan599/mushroom1
 https://www.kaggle.com/code/chitradas/mushroom-species-high-quality-inference/notebook
+https://www.researchgate.net/publication/355114369_Mushroom_Image_Classification_with_CNNs_A_Case-Study_of_Different_Learning_Strategies
 
