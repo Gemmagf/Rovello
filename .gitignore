@@ -1,0 +1,12 @@
+node_modules/
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+*.h5
+*.pklvenv/
+venv/
+venv/
+venv/
+*.pyc
+__pycache__/
