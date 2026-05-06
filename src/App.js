@@ -1,19 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Header from './components/Header';
 import UploadArea from './components/UploadArea';
 import AnalyzeButton from './components/AnalyzeButton';
 import ResultDisplay from './components/ResultDisplay';
-import { analyzeMushroom } from './utils/mushroomAnalyzer';
+import { analyzeMushroom, requestGeolocation } from './utils/mushroomAnalyzer';
 
 const App = () => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [result, setResult] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [geo, setGeo] = useState(null);
+  const [geoStatus, setGeoStatus] = useState('idle'); // idle | requesting | granted | denied
+
+  // Demana geolocalització en muntar (no bloquejant)
+  useEffect(() => {
+    setGeoStatus('requesting');
+    requestGeolocation().then((loc) => {
+      if (loc) {
+        setGeo(loc);
+        setGeoStatus('granted');
+      } else {
+        setGeoStatus('denied');
+      }
+    });
+  }, []);
 
   const handleImageSelect = (file) => {
     setSelectedFile(file);
-    setResult(null); // Neteja resultat anterior
+    setResult(null);
   };
 
   const handleAnalyze = async () => {
@@ -23,16 +38,20 @@ const App = () => {
     setResult(null);
 
     try {
-      const analysis = await analyzeMushroom(selectedFile);
+      const context = {
+        month: new Date().getMonth() + 1,
+        ...(geo || {}),
+      };
+      const analysis = await analyzeMushroom(selectedFile, context);
       setResult(analysis);
     } catch (error) {
-      console.error('Error en l’anàlisi:', error);
+      console.error('Error en l\u2019anàlisi:', error);
       setResult({
         name: "Error en la detecció",
         description: "Alguna cosa ha anat malament. Prova amb una altra foto més clara.",
         edible: false,
         toxicity: "Revisa la imatge",
-        tips: "Assegura’t que la foto sigui nítida i ben il·luminada."
+        tips: "Assegura't que la foto sigui nítida i ben il·luminada."
       });
     } finally {
       setIsAnalyzing(false);
@@ -78,6 +97,18 @@ const App = () => {
                 isLoading={isAnalyzing}
               />
             </AnimatePresence>
+          </div>
+
+          <div className="mt-4 text-center text-xs text-gray-500">
+            {geoStatus === 'granted' && geo && (
+              <>
+                Ubicació detectada: {geo.lat.toFixed(2)}°, {geo.lon.toFixed(2)}° — millorarà la predicció
+              </>
+            )}
+            {geoStatus === 'denied' && (
+              <>Sense ubicació: la predicció es basarà només en la imatge</>
+            )}
+            {geoStatus === 'requesting' && <>Detectant ubicació...</>}
           </div>
         </motion.div>
 
