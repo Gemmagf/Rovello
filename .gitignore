@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+
+# Models i dades grans
+*.h5
+*.pt
+*.pkl
+*.parquet
+*.npz
+ml/data/
+ml/models/
+ml/priors/*.pkl
+ml/priors/*.npz
+!ml/priors/fusion.py
+
+# Build
+build/
+dist/
+*.egg-info/

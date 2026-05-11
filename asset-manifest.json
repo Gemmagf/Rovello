@@ -1,0 +1,13 @@
+{
+  "files": {
+    "main.css": "/Rovello/static/css/main.fb41e204.css",
+    "main.js": "/Rovello/static/js/main.ed98478a.js",
+    "index.html": "/Rovello/index.html",
+    "main.fb41e204.css.map": "/Rovello/static/css/main.fb41e204.css.map",
+    "main.ed98478a.js.map": "/Rovello/static/js/main.ed98478a.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.fb41e204.css",
+    "static/js/main.ed98478a.js"
+  ]
+}
