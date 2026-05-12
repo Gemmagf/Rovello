@@ -24,6 +24,11 @@ ml/priors/*.pkl
 ml/priors/*.npz
 !ml/priors/fusion.py
 
+# Excepcions: fitxers del backend desplegat a Render
+!backend/models/mushroom_model.h5
+!backend/models/label_encoder.pkl
+!backend/models/geo_temporal_prior.pkl
+
 # Build
 build/
 dist/
