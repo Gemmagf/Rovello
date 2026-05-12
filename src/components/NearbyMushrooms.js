@@ -4,7 +4,7 @@ import { MapPin, Calendar, RefreshCw, Loader2, AlertTriangle, ChevronDown, Chevr
 import { useT } from '../context/LanguageContext';
 import { MONTHS } from '../i18n/translations';
 
-const API_URL = process.env.REACT_APP_API_URL || 'https://rovello.onrender.com';
+const API_URL = process.env.REACT_APP_API_URL || 'https://rovello-backend.onrender.com';
 
 const SEASONS = {
   1:'❄️',2:'❄️',3:'🌱',4:'🌱',5:'🌿',6:'☀️',

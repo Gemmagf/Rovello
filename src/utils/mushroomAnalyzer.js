@@ -1,4 +1,4 @@
-const API_URL = process.env.REACT_APP_API_URL || "https://rovello.onrender.com";
+const API_URL = process.env.REACT_APP_API_URL || "https://rovello-backend.onrender.com";
 
 const EDIBLE_SPECIES = [
   "Lactarius deliciosus",
