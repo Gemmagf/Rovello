@@ -261,6 +261,19 @@ const SpeciesRow = ({ species, probability, maxProb, rank, tier, info }) => {
 };
 
 // ── Component principal ───────────────────────────────────────────────────────
+const RETRY_DELAYS = [5000, 15000, 30000]; // ms entre reintents
+
+const fetchWithRetry = async (url, options, retries = RETRY_DELAYS) => {
+  try {
+    const res = await fetch(url, options);
+    return res;
+  } catch (e) {
+    if (!retries.length) throw e;
+    await new Promise(r => setTimeout(r, retries[0]));
+    return fetchWithRetry(url, options, retries.slice(1));
+  }
+};
+
 const NearbyMushrooms = ({ geo, month }) => {
   const { t, lang } = useT();
   const [forecast,     setForecast]     = useState(null);
@@ -270,6 +283,7 @@ const NearbyMushrooms = ({ geo, month }) => {
   const [loadingInfo,  setLoadingInfo]  = useState(false);
   const [error,        setError]        = useState(null);
   const [filterEdible, setFilterEdible] = useState(false);
+  const [waking,       setWaking]       = useState(false);
 
   useEffect(() => {
     if (!geo) return;
@@ -278,39 +292,56 @@ const NearbyMushrooms = ({ geo, month }) => {
 
   const loadForecast = useCallback(async () => {
     if (!geo) return;
-    setLoading(true); setError(null); setSpeciesInfo({});
-    try {
-      const res = await fetch(`${API_URL}/forecast`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lat: geo.lat, lon: geo.lon, month, k: 25 }),
-      });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Error ${res.status}`);
-      const data = await res.json();
-      setForecast(data);
-      const allSp = data.forecast.map(f => f.species);
-      setLoadingInfo(true);
-      // Fase 1: top 8 amb fotos
-      fetch(`${API_URL}/species-info`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ species: allSp.slice(0, 8) }),
-      })
-        .then(r => r.json())
-        .then(info => {
-          setSpeciesInfo(prev => ({ ...prev, ...info }));
-          const rest = allSp.slice(8);
-          if (!rest.length) { setLoadingInfo(false); return; }
-          return fetch(`${API_URL}/species-info`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ species: rest }),
-          }).then(r => r.json()).then(i2 => setSpeciesInfo(prev => ({ ...prev, ...i2 })));
+    setLoading(true); setError(null); setSpeciesInfo({}); setWaking(false);
+
+    // Ping previ per despertar el servidor (silenciós, no bloquejant)
+    fetch(`${API_URL}/health`).catch(() => {});
+
+    let attempt = 0;
+    const maxAttempts = 4;
+    while (attempt < maxAttempts) {
+      try {
+        if (attempt > 0) setWaking(true);
+        const res = await fetchWithRetry(`${API_URL}/forecast`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lat: geo.lat, lon: geo.lon, month, k: 25 }),
+        }, attempt === 0 ? [8000, 20000] : []);
+        setWaking(false);
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Error ${res.status}`);
+        const data = await res.json();
+        setForecast(data);
+        const allSp = data.forecast.map(f => f.species);
+        setLoadingInfo(true);
+        fetch(`${API_URL}/species-info`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ species: allSp.slice(0, 8) }),
         })
-        .catch(() => {})
-        .finally(() => setLoadingInfo(false));
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
+          .then(r => r.json())
+          .then(info => {
+            setSpeciesInfo(prev => ({ ...prev, ...info }));
+            const rest = allSp.slice(8);
+            if (!rest.length) { setLoadingInfo(false); return; }
+            return fetch(`${API_URL}/species-info`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ species: rest }),
+            }).then(r => r.json()).then(i2 => setSpeciesInfo(prev => ({ ...prev, ...i2 })));
+          })
+          .catch(() => {})
+          .finally(() => setLoadingInfo(false));
+        setLoading(false);
+        return; // èxit
+      } catch (e) {
+        attempt++;
+        if (attempt >= maxAttempts) {
+          setWaking(false);
+          setError(e.message);
+          setLoading(false);
+          return;
+        }
+        // Espera progressiva entre reintents
+        await new Promise(r => setTimeout(r, attempt * 10000));
+      }
     }
   }, [geo, month]);
 
@@ -400,7 +431,14 @@ const NearbyMushrooms = ({ geo, month }) => {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="flex flex-col items-center justify-center py-14 gap-3">
             <Loader2 size={34} className="animate-spin text-emerald-500" />
-            <p className="text-gray-500 text-sm">{t('nearbyLoading')}</p>
+            <p className="text-gray-500 text-sm">
+              {waking ? '⏳ Despertant servidor... (fins 30 seg)' : t('nearbyLoading')}
+            </p>
+            {waking && (
+              <p className="text-gray-400 text-xs text-center max-w-[220px] leading-relaxed">
+                El servidor gratuït adorm quan no s'usa. Només triga la primera vegada.
+              </p>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
