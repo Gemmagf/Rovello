@@ -8,6 +8,11 @@ import pickle
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+# Assegura que el directori backend sigui al path (import relatius funcionen)
+_BACKEND_DIR = Path(__file__).resolve().parent
+if str(_BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(_BACKEND_DIR))
+
 import numpy as np
 import requests as http_req
 from PIL import Image
@@ -23,10 +28,11 @@ logging.basicConfig(
 )
 log = logging.getLogger("rovello")
 
-APP = Flask(__name__)
-CORS(APP)
+app = Flask(__name__)   # minúscula per compatibilitat amb gunicorn (backend.server:app)
+APP = app               # àlies per compatibilitat interna
+CORS(app)
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = _BACKEND_DIR
 MODEL_PATH  = BASE_DIR / "models" / "mushroom_model.h5"
 LE_PATH     = BASE_DIR / "models" / "label_encoder.pkl"
 PRIOR_PATH  = BASE_DIR / "models" / "geo_temporal_prior.pkl"
@@ -44,7 +50,7 @@ log.info(f"Model carregat: {NUM_CLASSES} classes")
 PRIOR = None
 try:
     sys.path.insert(0, str(BASE_DIR))
-    from fusion import GeoTemporalPrior  # type: ignore
+    from fusion import GeoTemporalPrior   # fusion.py is in backend/
     PRIOR = GeoTemporalPrior.load(str(PRIOR_PATH))
     log.info(f"Prior carregat: {len(PRIOR.species_list)} espècies")
 except Exception as e:
