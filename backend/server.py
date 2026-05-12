@@ -1,14 +1,14 @@
-# backend/server.py
-import io
+# backend/server.py  — versió lleugera per Render free tier (512 MB RAM)
+# /forecast i /species-info funcionen plenament.
+# /predict retorna 503 amb missatge (el model TF requereix >1 GB RAM).
 import os
 import sys
-import json
 import logging
 import pickle
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# Assegura que el directori backend sigui al path (import relatius funcionen)
+# Assegura imports relatius des del directori backend
 _BACKEND_DIR = Path(__file__).resolve().parent
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
@@ -18,9 +18,6 @@ import requests as http_req
 from PIL import Image
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import tensorflow as tf
-
-from utils.preprocess import preprocess_pil_image
 
 logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "INFO"),
@@ -28,29 +25,16 @@ logging.basicConfig(
 )
 log = logging.getLogger("rovello")
 
-app = Flask(__name__)   # minúscula per compatibilitat amb gunicorn (backend.server:app)
-APP = app               # àlies per compatibilitat interna
+app = Flask(__name__)   # gunicorn busca 'app' (backend.server:app)
 CORS(app)
 
-BASE_DIR = _BACKEND_DIR
-MODEL_PATH  = BASE_DIR / "models" / "mushroom_model.h5"
-LE_PATH     = BASE_DIR / "models" / "label_encoder.pkl"
-PRIOR_PATH  = BASE_DIR / "models" / "geo_temporal_prior.pkl"
-FUSION_PATH = BASE_DIR / "fusion.py"
-
-# ── Model TF ─────────────────────────────────────────────────────────────────
-log.info("Carregant model TF...")
-model = tf.keras.models.load_model(str(MODEL_PATH), compile=False)
-with open(LE_PATH, "rb") as f:
-    le = pickle.load(f)
-NUM_CLASSES = len(le.classes_)
-log.info(f"Model carregat: {NUM_CLASSES} classes")
+BASE_DIR  = _BACKEND_DIR
+PRIOR_PATH = BASE_DIR / "models" / "geo_temporal_prior.pkl"
 
 # ── Prior geo-temporal ────────────────────────────────────────────────────────
 PRIOR = None
 try:
-    sys.path.insert(0, str(BASE_DIR))
-    from fusion import GeoTemporalPrior   # fusion.py is in backend/
+    from fusion import GeoTemporalPrior  # fusion.py a backend/
     PRIOR = GeoTemporalPrior.load(str(PRIOR_PATH))
     log.info(f"Prior carregat: {len(PRIOR.species_list)} espècies")
 except Exception as e:
@@ -114,7 +98,6 @@ _LICHEN_GENERA = {
     "Circinaria","Aspicilia","Physcia","Physconia","Melanelixia",
 }
 
-# ── Tips per espècie ──────────────────────────────────────────────────────────
 _TIPS: dict = {
     "Boletus edulis": [
         "Barret bru castany fins a 25 cm, superfície llisa i seca; porus blancs que envelleixen groc-olivaci",
@@ -134,12 +117,12 @@ _TIPS: dict = {
     "Macrolepiota procera": [
         "Barret gran fins 30 cm amb escames brunes sobre fons blanc; pom central bru prominent al centre",
         "Tija amb anell doble mòbil que llisca amunt i avall, i dibuix zebrat bru-blanc; base bulbosa",
-        "Carn blanca que no canvia de color al tall, olor agradable; recull només el barret, la tija és massa dura",
+        "Carn blanca que no canvia de color al tall, olor agradable; recull només el barret",
     ],
     "Agaricus campestris": [
         "Barret blanc-grisenc fins 10 cm; làmines inicialment ROSES INTENSES que envelleixen bru-negres",
         "Tija amb anell simple i fràgil; carn que enrogeix lleugerament al tall",
-        "Creix en PRATS i camps (mai al bosc); evita Agaricus xanthodermus ☠️ que groga al tall i fa olor de tinta",
+        "Creix en PRATS i camps (mai al bosc); evita Agaricus xanthodermus ☠️ que groga al tall",
     ],
     "Hydnum repandum": [
         "Cara inferior amb AGULLONS blancs-crema (no làmines ni porus) — himenòfor eriçonat únic",
@@ -241,7 +224,7 @@ _GENUS_TIPS: dict = {
     ],
     "Russula": [
         "Les làmines blanques-crema es trenquen fàcilment (molt fràgils); tija curta i robusta",
-        "Tasta un trosset molt petit de làmina: si és MUY PICANT o molt amarg, descarta l'espècie",
+        "Tasta un trosset molt petit de làmina: si és molt picant o molt amarg, descarta l'espècie",
         "Pela la cutícula: si es pela fàcilment i uniformement és un senyal; gust dolç = generalment bo",
     ],
     "Lactarius": [
@@ -261,17 +244,17 @@ _GENUS_TIPS: dict = {
     ],
     "Tricholoma": [
         "Làmines ESCOTADES a la inserció amb la tija; la majoria blanques, grises o grogues",
-        "L'arbre hoste és estricte (sous pins o sous caducifolis, no barrejat); comprova-ho sempre",
-        "Algunes espècies molt tòxiques (T. pardinum, T. equestre); identificació d'espècie és imprescindible",
+        "L'arbre hoste és estricte (sous pins o sous caducifolis); comprova-ho sempre",
+        "Algunes espècies molt tòxiques (T. pardinum, T. equestre); identificació d'espècie imprescindible",
     ],
     "Pleurotus": [
         "Creixement lateral sobre FUSTA (tija excèntrica o absent); làmines decurrents",
         "Barret en forma d'ostra o ventall; olor agradable i carn ferma blanca",
-        "Confirma que creix sobre fusta (no sobre terra); les espècies del gènere son generalment comestibles",
+        "Confirma que creix sobre fusta; les espècies del gènere son generalment comestibles",
     ],
     "Galerina": [
         "⚠️ Gènere amb espècies LETALS per amatoxines (mateixa toxina que A. phalloides)",
-        "Espores brunes (pols rovellada visible); anell membranós bru fràgil a la part superior de la tija",
+        "Espores brunes (pols rovellada visible); anell membranós bru fràgil a la tija",
         "⚠️ Mai collir bolets petits bruns sobre fusta sense identificació experta completa",
     ],
     "Puccinia": [
@@ -295,7 +278,7 @@ _GENUS_TIPS: dict = {
         "🪨 No és un bolet; identificació precisa requereix microscòpia i tests químics",
     ],
     "Usnea": [
-        "🪨 Liquen fruticulós PENJANT gris-verdós sobre branques; el signe clau: un FIL ELÀSTIC central visible en estirar-lo",
+        "🪨 Liquen fruticulós PENJANT gris-verdós sobre branques; el signe clau: un FIL ELÀSTIC central en estirar-lo",
         "🪨 Indicador excel·lent de qualitat de l'aire; la seva presència confirma poca contaminació",
         "🪨 Medicinal (àcid usníc antibacterià) però no comestible",
     ],
@@ -337,55 +320,42 @@ def _fetch_one(species_name: str) -> dict:
             t = results[0]
             photo = t.get("default_photo") or {}
             info = {
-                "taxon_id": t.get("id"),
+                "taxon_id":    t.get("id"),
                 "common_name": t.get("preferred_common_name", ""),
-                "photo_url": photo.get("square_url", ""),
+                "photo_url":   photo.get("square_url", ""),
             }
     except Exception:
         info = {}
     info["edibility"] = _get_edibility(species_name)
-    info["tips"] = _get_tips(species_name)
+    info["tips"]      = _get_tips(species_name)
     _inat_cache[species_name] = info
     return info
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
-@APP.route("/health", methods=["GET"])
+@app.route("/health", methods=["GET"])
 def health():
     return jsonify({
-        "status": "ok",
-        "classes": int(NUM_CLASSES),
+        "status":       "ok",
         "prior_loaded": PRIOR is not None,
-        "backend": "tf",
+        "backend":      "lightweight",
+        "predict":      "unavailable (requires GPU tier)",
     })
 
 
-@APP.route("/predict", methods=["POST"])
+@app.route("/predict", methods=["POST"])
 def predict():
-    if "image" not in request.files:
-        return jsonify({"error": "No image file in request (field 'image')"}), 400
-    file = request.files["image"]
-    try:
-        img = Image.open(file.stream).convert("RGB")
-    except Exception as e:
-        return jsonify({"error": "Invalid image", "detail": str(e)}), 400
-    try:
-        inp = preprocess_pil_image(img)
-        preds = model.predict(inp, verbose=0)
-        probs = preds[0]
-        topk = int(min(3, len(probs)))
-        top_idx = np.argsort(-probs)[:topk]
-        results = [
-            {"class_index": int(i), "class_name": str(le.classes_[i]), "prob": float(probs[i])}
-            for i in top_idx
-        ]
-        return jsonify({"predictions": results, "num_classes": NUM_CLASSES})
-    except Exception as e:
-        return jsonify({"error": "Inference error", "detail": str(e)}), 500
+    # El model TF requereix >1 GB RAM — no disponible al free tier de Render.
+    # El tab "Identifica" mostra un missatge d'error gràcies al catch del frontend.
+    return jsonify({
+        "error": "Model d'identificació no disponible al servidor gratuït. "
+                 "Executa el servidor local per usar /predict.",
+        "upgrade_required": True,
+    }), 503
 
 
-@APP.route("/forecast", methods=["GET", "POST"])
+@app.route("/forecast", methods=["GET", "POST"])
 def forecast():
     if PRIOR is None:
         return jsonify({"error": "Prior geo-temporal no disponible al servidor"}), 503
@@ -393,8 +363,10 @@ def forecast():
         body = request.json or {}
         lat, lon, month, k = body.get("lat"), body.get("lon"), body.get("month"), body.get("k", 25)
     else:
-        lat, lon = request.args.get("lat"), request.args.get("lon")
-        month, k = request.args.get("month"), request.args.get("k", 25)
+        lat = request.args.get("lat")
+        lon = request.args.get("lon")
+        month = request.args.get("month")
+        k = request.args.get("k", 25)
     try:
         lat, lon, month, k = float(lat), float(lon), int(month), int(k)
     except (TypeError, ValueError):
@@ -411,13 +383,15 @@ def forecast():
     ]
     log.info(f"forecast lat={lat:.2f} lon={lon:.2f} month={month} top1={results[0]['species']}")
     return jsonify({
-        "forecast": results,
-        "month": month, "lat": lat, "lon": lon,
+        "forecast":      results,
+        "month":         month,
+        "lat":           lat,
+        "lon":           lon,
         "total_species": len(PRIOR.species_list),
     })
 
 
-@APP.route("/species-info", methods=["POST"])
+@app.route("/species-info", methods=["POST"])
 def species_info():
     species_list = (request.json or {}).get("species", [])[:25]
     results = {}
@@ -433,4 +407,4 @@ def species_info():
 
 
 if __name__ == "__main__":
-    APP.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=5000, debug=False)
