@@ -4,4 +4,4 @@ services:
     env: python
     plan: free
     buildCommand: pip install -r backend/requirements.txt
-    startCommand: gunicorn -w 1 -b 0.0.0.0:$PORT backend.server:app
+    startCommand: cd backend && gunicorn -w 1 -b 0.0.0.0:$PORT server:app
