@@ -10,6 +10,10 @@ import PilzkontrolleInfo from './components/PilzkontrolleInfo';
 import DataScienceSection from './components/DataScienceSection';
 import { analyzeMushroom, requestGeolocation } from './utils/mushroomAnalyzer';
 
+const API_URL = process.env.REACT_APP_API_URL || 'https://rovello-backend.onrender.com';
+// Desperta el backend en silenci en cuanto carrega l'app
+fetch(`${API_URL}/health`).catch(() => {});
+
 const TAB_IDENTIFICA    = 'identifica';
 const TAB_DESCOBREIX    = 'descobreix';
 const TAB_PILZKONTROLLE = 'pilzkontrolle';

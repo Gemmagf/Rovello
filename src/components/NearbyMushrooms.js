@@ -261,18 +261,6 @@ const SpeciesRow = ({ species, probability, maxProb, rank, tier, info }) => {
 };
 
 // ── Component principal ───────────────────────────────────────────────────────
-const RETRY_DELAYS = [5000, 15000, 30000]; // ms entre reintents
-
-const fetchWithRetry = async (url, options, retries = RETRY_DELAYS) => {
-  try {
-    const res = await fetch(url, options);
-    return res;
-  } catch (e) {
-    if (!retries.length) throw e;
-    await new Promise(r => setTimeout(r, retries[0]));
-    return fetchWithRetry(url, options, retries.slice(1));
-  }
-};
 
 const NearbyMushrooms = ({ geo, month }) => {
   const { t, lang } = useT();
@@ -294,55 +282,52 @@ const NearbyMushrooms = ({ geo, month }) => {
     if (!geo) return;
     setLoading(true); setError(null); setSpeciesInfo({}); setWaking(false);
 
-    // Ping previ per despertar el servidor (silenciós, no bloquejant)
-    fetch(`${API_URL}/health`).catch(() => {});
+    const doFetch = () => fetch(`${API_URL}/forecast`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lat: geo.lat, lon: geo.lon, month, k: 25 }),
+    });
 
-    let attempt = 0;
-    const maxAttempts = 4;
-    while (attempt < maxAttempts) {
+    let res;
+    try {
+      res = await doFetch();
+    } catch {
+      // Primer intent fallat → servidor adormit, esperem 35s i reintenten
+      setWaking(true);
+      await new Promise(r => setTimeout(r, 35000));
+      setWaking(false);
       try {
-        if (attempt > 0) setWaking(true);
-        const res = await fetchWithRetry(`${API_URL}/forecast`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lat: geo.lat, lon: geo.lon, month, k: 25 }),
-        }, attempt === 0 ? [8000, 20000] : []);
-        setWaking(false);
-        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Error ${res.status}`);
-        const data = await res.json();
-        setForecast(data);
-        const allSp = data.forecast.map(f => f.species);
-        setLoadingInfo(true);
-        fetch(`${API_URL}/species-info`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ species: allSp.slice(0, 8) }),
-        })
-          .then(r => r.json())
-          .then(info => {
-            setSpeciesInfo(prev => ({ ...prev, ...info }));
-            const rest = allSp.slice(8);
-            if (!rest.length) { setLoadingInfo(false); return; }
-            return fetch(`${API_URL}/species-info`, {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ species: rest }),
-            }).then(r => r.json()).then(i2 => setSpeciesInfo(prev => ({ ...prev, ...i2 })));
-          })
-          .catch(() => {})
-          .finally(() => setLoadingInfo(false));
-        setLoading(false);
-        return; // èxit
-      } catch (e) {
-        attempt++;
-        if (attempt >= maxAttempts) {
-          setWaking(false);
-          setError(e.message);
-          setLoading(false);
-          return;
-        }
-        // Espera progressiva entre reintents
-        await new Promise(r => setTimeout(r, attempt * 10000));
+        res = await doFetch();
+      } catch (e2) {
+        setError(e2.message); setLoading(false); return;
       }
     }
+
+    if (!res.ok) {
+      setError(`Error ${res.status}`); setLoading(false); return;
+    }
+    const data = await res.json();
+    setForecast(data);
+    setLoading(false);
+
+    const allSp = data.forecast.map(f => f.species);
+    setLoadingInfo(true);
+    fetch(`${API_URL}/species-info`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ species: allSp.slice(0, 8) }),
+    })
+      .then(r => r.json())
+      .then(info => {
+        setSpeciesInfo(prev => ({ ...prev, ...info }));
+        const rest = allSp.slice(8);
+        if (!rest.length) { setLoadingInfo(false); return; }
+        return fetch(`${API_URL}/species-info`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ species: rest }),
+        }).then(r => r.json()).then(i2 => setSpeciesInfo(prev => ({ ...prev, ...i2 })));
+      })
+      .catch(() => {})
+      .finally(() => setLoadingInfo(false));
   }, [geo, month]);
 
   useEffect(() => { loadForecast(); }, [loadForecast]);
