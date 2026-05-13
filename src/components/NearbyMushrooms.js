@@ -449,59 +449,79 @@ const NearbyMushrooms = ({ geo, month }) => {
             {' '}· {t('nearbyObs')} · {monthName}
           </p>
 
-          {highTier.length > 0 && (
-            <div>
+          {/* Mode filtre: totes les comestibles com a SpeciesCard amb foto i tips */}
+          {filterEdible ? (
+            <div className="space-y-2">
               <div className="flex items-center gap-2 mb-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
                 <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">
-                  {t('highProbLabel')}
+                  ✅ {t('edib_edible')}
                 </span>
                 {loadingInfo && <Loader2 size={11} className="animate-spin text-gray-400" />}
               </div>
-              <div className="space-y-2">
-                {highTier.map((item, i) => (
-                  <SpeciesCard key={item.species} species={item.species}
-                    probability={item.probability} maxProb={maxProb}
-                    rank={i} info={speciesInfo[item.species]} />
-                ))}
-              </div>
+              {[...highTier, ...midTier, ...lowTier].map((item, i) => (
+                <SpeciesCard key={item.species} species={item.species}
+                  probability={item.probability} maxProb={maxProb}
+                  rank={i} info={speciesInfo[item.species]} />
+              ))}
             </div>
-          )}
+          ) : (
+            <>
+              {highTier.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+                    <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">
+                      {t('highProbLabel')}
+                    </span>
+                    {loadingInfo && <Loader2 size={11} className="animate-spin text-gray-400" />}
+                  </div>
+                  <div className="space-y-2">
+                    {highTier.map((item, i) => (
+                      <SpeciesCard key={item.species} species={item.species}
+                        probability={item.probability} maxProb={maxProb}
+                        rank={i} info={speciesInfo[item.species]} />
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          {midTier.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="w-2 h-2 rounded-full bg-teal-300 inline-block" />
-                <span className="text-xs font-semibold text-teal-600 uppercase tracking-wide">
-                  {t('goodProbLabel')}
-                </span>
-              </div>
-              <div className="space-y-1.5">
-                {midTier.map((item, i) => (
-                  <SpeciesRow key={item.species} species={item.species}
-                    probability={item.probability} maxProb={maxProb}
-                    rank={i + 5} tier="mid" info={speciesInfo[item.species]} />
-                ))}
-              </div>
-            </div>
-          )}
+              {midTier.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-2 h-2 rounded-full bg-teal-300 inline-block" />
+                    <span className="text-xs font-semibold text-teal-600 uppercase tracking-wide">
+                      {t('goodProbLabel')}
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {midTier.map((item, i) => (
+                      <SpeciesRow key={item.species} species={item.species}
+                        probability={item.probability} maxProb={maxProb}
+                        rank={i + 5} tier="mid" info={speciesInfo[item.species]} />
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          {lowTier.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="w-2 h-2 rounded-full bg-gray-300 inline-block" />
-                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                  {t('possibleLabel')}
-                </span>
-              </div>
-              <div className="space-y-1.5">
-                {lowTier.map((item, i) => (
-                  <SpeciesRow key={item.species} species={item.species}
-                    probability={item.probability} maxProb={maxProb}
-                    rank={i + 13} tier="low" info={speciesInfo[item.species]} />
-                ))}
-              </div>
-            </div>
+              {lowTier.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-2 h-2 rounded-full bg-gray-300 inline-block" />
+                    <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                      {t('possibleLabel')}
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {lowTier.map((item, i) => (
+                      <SpeciesRow key={item.species} species={item.species}
+                        probability={item.probability} maxProb={maxProb}
+                        rank={i + 13} tier="low" info={speciesInfo[item.species]} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {filterEdible && total === 0 && !loadingInfo && (
