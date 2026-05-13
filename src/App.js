@@ -27,13 +27,15 @@ const AppInner = () => {
 
   const month = new Date().getMonth() + 1;
 
-  useEffect(() => {
+  const tryGeolocation = () => {
     setGeoStatus('requesting');
     requestGeolocation().then((loc) => {
       if (loc) { setGeo(loc); setGeoStatus('granted'); }
       else      { setGeoStatus('denied'); }
     });
-  }, []);
+  };
+
+  useEffect(() => { tryGeolocation(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleImageSelect = (file) => {
     setSelectedFile(file);
@@ -85,10 +87,16 @@ const AppInner = () => {
               </span>
             )}
             {geoStatus === 'denied' && (
-              <span className="text-amber-500">📍 {t('geoDenied')}</span>
+              <span className="text-amber-500">
+                📍 {t('geoDenied')}{' '}
+                <button onClick={tryGeolocation}
+                  className="underline hover:text-amber-700 font-semibold ml-1">
+                  {t('geoRetry')}
+                </button>
+              </span>
             )}
             {geoStatus === 'requesting' && (
-              <span>{t('geoRequesting')}</span>
+              <span>⏳ {t('geoRequesting')}</span>
             )}
           </div>
 
