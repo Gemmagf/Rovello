@@ -82,15 +82,43 @@ export const analyzeMushroom = async (imageFile, context = {}) => {
 /**
  * Demana la geolocalització del navegador. Retorna {lat, lon} o null si denegat/error.
  */
+// Fallback via IP quan la geo del browser falla (error 2 = position unavailable)
+const geoByIP = async () => {
+  try {
+    const r = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(5000) });
+    const d = await r.json();
+    if (d.latitude && d.longitude)
+      return { lat: d.latitude, lon: d.longitude, byIP: true };
+  } catch {}
+  try {
+    const r = await fetch('https://ip-api.com/json/?fields=lat,lon,status', { signal: AbortSignal.timeout(5000) });
+    const d = await r.json();
+    if (d.status === 'success')
+      return { lat: d.lat, lon: d.lon, byIP: true };
+  } catch {}
+  return null;
+};
+
 export const requestGeolocation = (timeoutMs = 8000) =>
   new Promise((resolve) => {
-    if (!("geolocation" in navigator)) { resolve(null); return; }
+    if (!("geolocation" in navigator)) {
+      geoByIP().then(resolve);
+      return;
+    }
     let done = false;
     const finish = (val) => { if (!done) { done = true; resolve(val); } };
     setTimeout(() => finish(null), timeoutMs);
     navigator.geolocation.getCurrentPosition(
       (pos) => finish({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-      ()    => finish(null),
+      async (err) => {
+        // Error 2 (unavailable) o 3 (timeout) → prova per IP
+        if (err.code === 2 || err.code === 3) {
+          const ipLoc = await geoByIP();
+          finish(ipLoc);
+        } else {
+          finish(null); // Error 1 = denegat → no intentem per IP
+        }
+      },
       { enableHighAccuracy: false, maximumAge: 60000, timeout: timeoutMs }
     );
   });

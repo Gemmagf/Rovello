@@ -82,8 +82,9 @@ const AppInner = () => {
           {/* Geo status */}
           <div className="mt-3 text-center text-xs text-gray-500">
             {geoStatus === 'granted' && geo && (
-              <span className="text-emerald-600">
-                📍 {geo.lat.toFixed(3)}°, {geo.lon.toFixed(3)}° · {t('geoActive')}
+              <span className={geo.byIP ? 'text-amber-500' : 'text-emerald-600'}>
+                📍 {geo.lat.toFixed(3)}°, {geo.lon.toFixed(3)}°
+                {' · '}{geo.byIP ? '🌐 ubicació per IP (aprox.)' : t('geoActive')}
               </span>
             )}
             {geoStatus === 'denied' && (
