@@ -82,15 +82,15 @@ export const analyzeMushroom = async (imageFile, context = {}) => {
 /**
  * Demana la geolocalització del navegador. Retorna {lat, lon} o null si denegat/error.
  */
-export const requestGeolocation = (timeoutMs = 20000) =>
+export const requestGeolocation = (timeoutMs = 8000) =>
   new Promise((resolve) => {
-    if (!("geolocation" in navigator)) {
-      resolve(null);
-      return;
-    }
+    if (!("geolocation" in navigator)) { resolve(null); return; }
+    let done = false;
+    const finish = (val) => { if (!done) { done = true; resolve(val); } };
+    setTimeout(() => finish(null), timeoutMs);
     navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-      ()    => resolve(null),
-      { enableHighAccuracy: false, maximumAge: 30000, timeout: timeoutMs }
+      (pos) => finish({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      ()    => finish(null),
+      { enableHighAccuracy: false, maximumAge: 60000, timeout: timeoutMs }
     );
   });

@@ -35,7 +35,7 @@ const AppInner = () => {
     });
   };
 
-  useEffect(() => { tryGeolocation(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { tryGeolocation(); }, []); // eslint-disable-line
 
   const handleImageSelect = (file) => {
     setSelectedFile(file);
