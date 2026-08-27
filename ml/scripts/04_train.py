@@ -284,6 +284,8 @@ def main():
                         help="Congela backbone (només cap aprèn). Útil per DINOv2 quan dades < 50k.")
     parser.add_argument("--no-mixup", action="store_true")
     parser.add_argument("--run-name", default=None)
+    parser.add_argument("--resume", action="store_true",
+                        help="Repren entrenament des de last.pt (restaura historial i LR)")
     args = parser.parse_args()
 
     device = get_device()
@@ -323,16 +325,17 @@ def main():
         replacement=True,
     )
 
+    # persistent_workers=False per evitar crashes quan el Mac dorm i es desperta
     train_loader = DataLoader(
         train_ds, batch_size=args.batch_size, sampler=sampler,
-        num_workers=args.num_workers, pin_memory=False, persistent_workers=args.num_workers > 0,
+        num_workers=args.num_workers, pin_memory=False, persistent_workers=False,
     )
     val_loader = DataLoader(val_ds, batch_size=args.batch_size,
                             num_workers=args.num_workers, pin_memory=False,
-                            persistent_workers=args.num_workers > 0)
+                            persistent_workers=False)
     test_loader = DataLoader(test_ds, batch_size=args.batch_size,
                              num_workers=args.num_workers, pin_memory=False,
-                             persistent_workers=args.num_workers > 0)
+                             persistent_workers=False)
 
     # Optimizer: lr diferent per cap vs backbone
     head_params, backbone_params = [], []
@@ -374,8 +377,38 @@ def main():
     history = []
     best_top1 = -1.0
     epochs_no_improve = 0
+    start_epoch = 1
 
-    for epoch in range(1, args.epochs + 1):
+    # ── Resume des de last.pt ─────────────────────────────────────────────────
+    if args.resume:
+        ckpt_path = out_dir / "last.pt"
+        if not ckpt_path.exists():
+            raise FileNotFoundError(f"No es pot reprendre: {ckpt_path} no existeix")
+        ckpt = torch.load(ckpt_path, map_location=device)
+        model.load_state_dict(ckpt["model"])
+        start_epoch = ckpt["epoch"] + 1
+        print(f">>> Model carregat des de {ckpt_path} (ep {ckpt['epoch']})")
+
+        metrics_path = out_dir / "metrics.json"
+        if metrics_path.exists():
+            with open(metrics_path) as f:
+                saved = json.load(f)
+            history = saved.get("history", [])
+            best_top1 = saved.get("best_val_top1", -1.0)
+            best_ep = max((h["epoch"] for h in history
+                           if h["val"]["top1"] >= best_top1 - 1e-6), default=start_epoch - 1)
+            epochs_no_improve = (start_epoch - 1) - best_ep
+            print(f">>> Historial: {len(history)} èpoques | millor={best_top1:.4f} (ep {best_ep})")
+            print(f">>> Early stopping: {epochs_no_improve}/{args.patience}")
+
+        # Avança el scheduler fins al punt correcte (reconstrueix LR cosine)
+        resume_steps = (start_epoch - 1) * steps_per_epoch
+        print(f">>> Avançant scheduler {resume_steps} passos per restaurar LR...")
+        for _ in range(resume_steps):
+            scheduler.step()
+        print(f">>> LR restaurada: head={optimizer.param_groups[0]['lr']:.2e}")
+
+    for epoch in range(start_epoch, args.epochs + 1):
         t0 = time.time()
         train_metrics = train_one_epoch(
             model, train_loader, optimizer, scheduler, criterion, device,
