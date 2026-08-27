@@ -3,5 +3,18 @@ services:
     name: rovello-backend
     env: python
     plan: free
-    buildCommand: pip install -r backend/requirements.txt
-    startCommand: gunicorn -w 1 -b 0.0.0.0:5000 backend.server:app
+    buildCommand: pip install -r backend/requirements.txt && python backend/download_model.py
+    startCommand: gunicorn -w 1 -b 0.0.0.0:$PORT backend.server_v2:APP
+    envVars:
+      - key: ROVELLO_MODEL_BACKEND
+        value: torch
+      - key: ROVELLO_MODEL_URL
+        sync: false
+      - key: ROVELLO_PRIOR_URL
+        sync: false
+      - key: ROVELLO_LABEL_MAP_URL
+        sync: false
+      - key: ROVELLO_CONFIG_URL
+        sync: false
+      - key: ROVELLO_LOG_LEVEL
+        value: INFO

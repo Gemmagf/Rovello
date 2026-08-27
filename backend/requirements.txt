@@ -1,7 +1,10 @@
 flask
 flask-cors
-tensorflow==2.15.0
+gunicorn
 numpy
 pillow
-scikit-learn==1.6.1
-gunicorn
+scikit-learn
+requests
+torch==2.8.0+cpu
+torchvision==0.23.0+cpu
+--extra-index-url https://download.pytorch.org/whl/cpu
