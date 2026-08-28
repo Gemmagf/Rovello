@@ -1,13 +1,13 @@
 {
   "files": {
-    "main.css": "/Rovello/static/css/main.b06eed94.css",
-    "main.js": "/Rovello/static/js/main.9b472ffd.js",
+    "main.css": "/Rovello/static/css/main.8e0b35b6.css",
+    "main.js": "/Rovello/static/js/main.63bba892.js",
     "index.html": "/Rovello/index.html",
-    "main.b06eed94.css.map": "/Rovello/static/css/main.b06eed94.css.map",
-    "main.9b472ffd.js.map": "/Rovello/static/js/main.9b472ffd.js.map"
+    "main.8e0b35b6.css.map": "/Rovello/static/css/main.8e0b35b6.css.map",
+    "main.63bba892.js.map": "/Rovello/static/js/main.63bba892.js.map"
   },
   "entrypoints": [
-    "static/css/main.b06eed94.css",
-    "static/js/main.9b472ffd.js"
+    "static/css/main.8e0b35b6.css",
+    "static/js/main.63bba892.js"
   ]
 }
