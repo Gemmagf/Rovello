@@ -51,10 +51,10 @@ const WeatherCard = ({ weather }) => {
   if (!weather) return null;
 
   const getActivityInfo = (score) => {
-    if (score >= 4) return { label: t('actExcellent'), emoji: '🟢', color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' };
-    if (score >= 3) return { label: t('actGood'),      emoji: '🟡', color: 'text-teal-700',    bg: 'bg-teal-50 border-teal-200'    };
-    if (score >= 2) return { label: t('actModerate'),  emoji: '🟠', color: 'text-amber-700',   bg: 'bg-amber-50 border-amber-200'  };
-    return              { label: t('actLow'),       emoji: '🔴', color: 'text-gray-600',    bg: 'bg-gray-50 border-gray-200'    };
+    if (score >= 4) return { label: t('actExcellent'), emoji: '🟢', color: 'text-forest-700', bg: 'bg-cream-100 border-sage-200' };
+    if (score >= 3) return { label: t('actGood'),      emoji: '🟡', color: 'text-forest-700', bg: 'bg-cream-100 border-sage-200' };
+    if (score >= 2) return { label: t('actModerate'),  emoji: '🟠', color: 'text-amber-700',  bg: 'bg-amber-50 border-amber-200' };
+    return              { label: t('actLow'),       emoji: '🔴', color: 'text-muted',       bg: 'bg-cream-100 border-sage-200' };
   };
 
   const getTerrainLabel = (elev) => {
@@ -71,11 +71,11 @@ const WeatherCard = ({ weather }) => {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-      className={`rounded-2xl border p-4 ${act.bg}`}
+      className={`rounded-card border p-4 ${act.bg}`}
     >
       <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-semibold text-gray-700">{t('terrainCard')}</span>
-        <span className={`text-xs font-bold px-2.5 py-1 rounded-full bg-white/80 ${act.color}`}>
+        <span className="text-sm font-semibold text-ink">{t('terrainCard')}</span>
+        <span className={`text-xs font-bold px-2.5 py-1 rounded-pill bg-white ${act.color}`}>
           {act.emoji} {t('activityLabel')} {act.label}
         </span>
       </div>
@@ -86,10 +86,10 @@ const WeatherCard = ({ weather }) => {
           { icon: '🌡️', val: `${weather.avgMin}–${weather.avgMax}°`, sub: t('tempLabel') },
           { icon: '🏔️', val: `${weather.elevation} m`, sub: getTerrainLabel(weather.elevation) },
         ].map(({ icon, val, sub }) => (
-          <div key={sub} className="bg-white/70 rounded-xl p-2.5 text-center">
+          <div key={sub} className="bg-white rounded-btn p-2.5 text-center">
             <div className="text-lg mb-0.5">{icon}</div>
-            <div className="text-sm font-bold text-gray-800">{val}</div>
-            <div className="text-xs text-gray-400 leading-tight">{sub}</div>
+            <div className="text-sm font-bold text-ink">{val}</div>
+            <div className="text-xs text-muted leading-tight">{sub}</div>
           </div>
         ))}
       </div>
@@ -100,7 +100,7 @@ const WeatherCard = ({ weather }) => {
           {weather.rainByDay.map((rain, i) => {
             const h = Math.max(2, ((rain || 0) / maxRain) * 24);
             return (
-              <motion.div key={i} className="flex-1 rounded-sm bg-blue-300/80"
+              <motion.div key={i} className="flex-1 rounded-sm bg-forest-700"
                 initial={{ height: 0 }} animate={{ height: h }}
                 transition={{ delay: i * 0.04, duration: 0.3 }}
                 title={`${(rain || 0).toFixed(1)} mm`} />
@@ -108,8 +108,8 @@ const WeatherCard = ({ weather }) => {
           })}
         </div>
         <div className="flex justify-between mt-1">
-          <span className="text-xs text-gray-300">{t('sevenDaysAgo')}</span>
-          <span className="text-xs text-gray-300">{t('todayLabel')}</span>
+          <span className="text-xs text-muted">{t('sevenDaysAgo')}</span>
+          <span className="text-xs text-muted">{t('todayLabel')}</span>
         </div>
       </div>
     </motion.div>
@@ -125,24 +125,24 @@ const SpeciesCard = ({ species, probability, maxProb, rank, info }) => {
 
   const edibLabel = info?.edibility ? t(`edib_${info.edibility}`) : t('edib_unknown');
   const edibCls = {
-    edible:   'bg-emerald-100 text-emerald-700 border-emerald-200',
-    toxic:    'bg-red-100 text-red-700 border-red-200',
-    caution:  'bg-orange-100 text-orange-700 border-orange-200',
-    inedible: 'bg-gray-100 text-gray-600 border-gray-200',
-    parasite: 'bg-blue-50 text-blue-500 border-blue-100',
-    lichen:   'bg-slate-100 text-slate-500 border-slate-200',
-    unknown:  'bg-gray-100 text-gray-400 border-gray-200',
+    edible:   'bg-green-50 text-green-800 border-green-200',
+    toxic:    'bg-red-50 text-red-800 border-red-200',
+    caution:  'bg-amber-50 text-amber-800 border-amber-200',
+    inedible: 'bg-cream-100 text-muted border-sage-200',
+    parasite: 'bg-cream-100 text-muted border-sage-200',
+    lichen:   'bg-cream-100 text-muted border-sage-200',
+    unknown:  'bg-cream-100 text-muted border-sage-200',
   }[info?.edibility || 'unknown'];
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
       transition={{ delay: rank * 0.06, duration: 0.3 }}
-      className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md
-                 hover:border-emerald-100 transition-all overflow-hidden"
+      className="bg-white rounded-card border border-sage-200 shadow-sm hover:shadow-sm
+                 hover:border-sage-200 transition-all overflow-hidden"
     >
       <div className="flex">
-        <div className="w-20 h-20 shrink-0 bg-gray-100 relative overflow-hidden">
+        <div className="w-20 h-20 shrink-0 bg-cream-100 relative overflow-hidden">
           {info?.photo_url ? (
             <img src={info.photo_url} alt={species} className="w-full h-full object-cover"
               onError={e => { e.target.style.display = 'none'; }} />
@@ -150,25 +150,25 @@ const SpeciesCard = ({ species, probability, maxProb, rank, info }) => {
             <div className="w-full h-full flex items-center justify-center text-2xl">🍄</div>
           )}
           <div className="absolute top-1 left-1 bg-black/50 text-white text-xs font-bold
-                          w-5 h-5 rounded-full flex items-center justify-center">{rank + 1}</div>
+                          w-5 h-5 rounded-pill flex items-center justify-center">{rank + 1}</div>
         </div>
         <div className="flex-1 px-3 py-2.5 min-w-0">
           <div className="flex items-start justify-between gap-2 mb-1">
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-gray-800 italic truncate leading-tight">{species}</p>
-              {info?.common_name && <p className="text-xs text-gray-400 truncate mt-0.5">{info.common_name}</p>}
+              <p className="text-sm font-semibold text-ink italic truncate leading-tight">{species}</p>
+              {info?.common_name && <p className="text-xs text-muted truncate mt-0.5">{info.common_name}</p>}
             </div>
-            <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full border font-medium whitespace-nowrap ${edibCls}`}>
+            <span className={`shrink-0 text-xs px-2 py-0.5 rounded-pill border font-medium whitespace-nowrap ${edibCls}`}>
               {edibLabel}
             </span>
           </div>
           <div className="flex items-center gap-2 mt-2">
-            <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
-              <motion.div className="h-1.5 rounded-full bg-emerald-400"
+            <div className="flex-1 bg-cream-100 rounded-pill h-1.5 overflow-hidden">
+              <motion.div className="h-1.5 rounded-pill bg-forest-700"
                 initial={{ width: 0 }} animate={{ width: `${relPct}%` }}
                 transition={{ delay: rank * 0.06 + 0.15, duration: 0.6, ease: 'easeOut' }} />
             </div>
-            <span className="text-xs text-gray-400 font-mono w-12 text-right shrink-0">
+            <span className="text-xs text-muted font-mono w-12 text-right shrink-0">
               {(probability * 100).toFixed(3)}%
             </span>
           </div>
@@ -176,10 +176,10 @@ const SpeciesCard = ({ species, probability, maxProb, rank, info }) => {
       </div>
 
       {tips.length > 0 && (
-        <div className="border-t border-gray-50">
+        <div className="border-t border-sage-200">
           <button onClick={() => setShowTips(v => !v)}
             className="w-full flex items-center justify-between px-3 py-2 text-xs
-                       text-emerald-600 hover:bg-emerald-50/60 transition-colors">
+                       text-forest-700 hover:bg-cream-100 transition-colors">
             <span className="font-semibold">
               🔎 {t('howToId')} ({tips.length} {t('tipsWord')})
             </span>
@@ -194,8 +194,8 @@ const SpeciesCard = ({ species, probability, maxProb, rank, info }) => {
               >
                 <ol className="px-3 pb-3 space-y-2">
                   {tips.map((tip, i) => (
-                    <li key={i} className="flex items-start gap-2 text-xs text-gray-600 leading-relaxed">
-                      <span className="shrink-0 w-4 h-4 rounded-full bg-emerald-100 text-emerald-700
+                    <li key={i} className="flex items-start gap-2 text-xs text-muted leading-relaxed">
+                      <span className="shrink-0 w-4 h-4 rounded-pill bg-cream-100 text-forest-700
                                        font-bold text-center leading-4 mt-0.5">{i + 1}</span>
                       <span>{tip}</span>
                     </li>
@@ -215,44 +215,44 @@ const SpeciesRow = ({ species, probability, maxProb, rank, tier, info }) => {
   const { t } = useT();
   const relPct   = (probability / maxProb) * 100;
   const edib     = info?.edibility;
-  const barColor = tier === 'mid' ? 'bg-teal-300' : 'bg-gray-300';
+  const barColor = tier === 'mid' ? 'bg-forest-700' : 'bg-sage-200';
   const badge    = tier === 'mid'
-    ? { text: t('rowGood'),     cls: 'bg-teal-100 text-teal-700' }
-    : { text: t('rowPossible'), cls: 'bg-gray-100 text-gray-500' };
+    ? { text: t('rowGood'),     cls: 'bg-cream-100 text-forest-700' }
+    : { text: t('rowPossible'), cls: 'bg-cream-100 text-muted' };
 
-  const edibDot = edib === 'edible'   ? 'bg-emerald-400'
+  const edibDot = edib === 'edible'   ? 'bg-green-500'
                 : edib === 'toxic'    ? 'bg-red-500'
-                : edib === 'caution'  ? 'bg-orange-400'
-                : edib === 'parasite' ? 'bg-blue-300'
-                : edib === 'lichen'   ? 'bg-slate-300'
+                : edib === 'caution'  ? 'bg-amber-500'
+                : edib === 'parasite' ? 'bg-sage-200'
+                : edib === 'lichen'   ? 'bg-sage-200'
                 : null;
 
   return (
     <motion.div
       initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }}
       transition={{ delay: rank * 0.02, duration: 0.2 }}
-      className="bg-white rounded-xl px-4 py-2.5 border border-gray-100 shadow-sm
-                 hover:border-emerald-100 transition-all"
+      className="bg-white rounded-btn px-4 py-2.5 border border-sage-200 shadow-sm
+                 hover:border-sage-200 transition-all"
     >
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-gray-300 text-xs font-mono w-5 shrink-0">
+          <span className="text-muted text-xs font-mono w-5 shrink-0">
             {String(rank + 1).padStart(2, '0')}
           </span>
-          {edibDot && <span className={`shrink-0 w-2 h-2 rounded-full ${edibDot}`} title={edib} />}
-          <span className="text-sm text-gray-700 italic truncate">{species}</span>
+          {edibDot && <span className={`shrink-0 w-2 h-2 rounded-pill ${edibDot}`} title={edib} />}
+          <span className="text-sm text-ink italic truncate">{species}</span>
         </div>
-        <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ml-2 ${badge.cls}`}>
+        <span className={`shrink-0 text-xs px-2 py-0.5 rounded-pill font-medium ml-2 ${badge.cls}`}>
           {badge.text}
         </span>
       </div>
       <div className="flex items-center gap-2">
-        <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
-          <motion.div className={`h-1.5 rounded-full ${barColor}`}
+        <div className="flex-1 bg-cream-100 rounded-pill h-1.5 overflow-hidden">
+          <motion.div className={`h-1.5 rounded-pill ${barColor}`}
             initial={{ width: 0 }} animate={{ width: `${relPct}%` }}
             transition={{ delay: rank * 0.02 + 0.1, duration: 0.4, ease: 'easeOut' }} />
         </div>
-        <span className="text-xs text-gray-400 font-mono w-12 text-right shrink-0">
+        <span className="text-xs text-muted font-mono w-12 text-right shrink-0">
           {(probability * 100).toFixed(3)}%
         </span>
       </div>
@@ -335,7 +335,7 @@ const NearbyMushrooms = ({ geo, month }) => {
   if (!geo) {
     return (
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-        className="bg-amber-50 border border-amber-200 rounded-2xl p-8 text-center">
+        className="bg-amber-50 border border-amber-200 rounded-card p-8 text-center">
         <div className="text-4xl mb-3">📍</div>
         <p className="text-amber-800 font-semibold">{t('nearbyNoGeoTitle')}</p>
         <p className="text-amber-600 text-sm mt-2 leading-relaxed">{t('nearbyNoGeoDesc')}</p>
@@ -359,10 +359,10 @@ const NearbyMushrooms = ({ geo, month }) => {
     <div className="space-y-4">
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-2xl p-4 text-white shadow-md">
+        className="bg-forest-900 rounded-card p-4 text-cream-100 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-emerald-100 text-xs font-medium uppercase tracking-wide mb-1">
+            <p className="text-cream-100 text-xs font-medium uppercase tracking-wide mb-1">
               {t('nearbyTitle')}
             </p>
             <div className="flex flex-wrap items-center gap-3">
@@ -375,7 +375,7 @@ const NearbyMushrooms = ({ geo, month }) => {
             </div>
           </div>
           <button onClick={loadForecast} disabled={loading}
-            className="p-2.5 bg-white/20 rounded-xl hover:bg-white/30 transition-colors">
+            className="p-2.5 bg-forest-700 rounded-btn hover:bg-forest-700 transition-colors">
             <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
           </button>
         </div>
@@ -387,21 +387,21 @@ const NearbyMushrooms = ({ geo, month }) => {
       {hasRes && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2">
           <button onClick={() => setFilterEdible(v => !v)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold
+            className={`flex items-center gap-2 px-4 py-2 rounded-btn text-sm font-semibold
                         border transition-all duration-200
                         ${filterEdible
-                          ? 'bg-emerald-500 text-white border-emerald-600 shadow-sm'
-                          : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-300 hover:text-emerald-600'}`}>
+                          ? 'bg-forest-900 text-cream-100 border-forest-900 shadow-sm'
+                          : 'bg-white text-muted border-sage-200 hover:border-sage-200 hover:text-forest-700'}`}>
             <Leaf size={14} />
             {t('filterEdibleBtn')}
             {filterEdible && total > 0 && (
-              <span className="bg-white/30 text-white text-xs px-1.5 py-0.5 rounded-full font-bold">
+              <span className="bg-forest-700 text-cream-100 text-xs px-1.5 py-0.5 rounded-pill font-bold">
                 {total}
               </span>
             )}
           </button>
           {filterEdible && loadingInfo && (
-            <span className="flex items-center gap-1.5 text-xs text-gray-400">
+            <span className="flex items-center gap-1.5 text-xs text-muted">
               <Loader2 size={11} className="animate-spin" /> {t('filterLoading')}
             </span>
           )}
@@ -415,12 +415,12 @@ const NearbyMushrooms = ({ geo, month }) => {
         {loading && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="flex flex-col items-center justify-center py-14 gap-3">
-            <Loader2 size={34} className="animate-spin text-emerald-500" />
-            <p className="text-gray-500 text-sm">
+            <Loader2 size={34} className="animate-spin text-forest-700" />
+            <p className="text-muted text-sm">
               {waking ? '⏳ Despertant servidor... (fins 30 seg)' : t('nearbyLoading')}
             </p>
             {waking && (
-              <p className="text-gray-400 text-xs text-center max-w-[220px] leading-relaxed">
+              <p className="text-muted text-xs text-center max-w-[220px] leading-relaxed">
                 El servidor gratuït adorm quan no s'usa. Només triga la primera vegada.
               </p>
             )}
@@ -430,7 +430,7 @@ const NearbyMushrooms = ({ geo, month }) => {
 
       {error && !loading && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
+          className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-btn p-4">
           <AlertTriangle size={18} className="text-red-500 mt-0.5 shrink-0" />
           <div>
             <p className="text-red-700 font-medium text-sm">{t('nearbyError')}</p>
@@ -441,7 +441,7 @@ const NearbyMushrooms = ({ geo, month }) => {
 
       {hasRes && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-          <p className="text-xs text-gray-400 text-center">
+          <p className="text-xs text-muted text-center">
             {filterEdible
               ? `${total} ${t('nearbyEdibleAmong')} ${forecast.forecast.length}`
               : `Top ${forecast.forecast.length} ${t('nearbyOf')} ${forecast.total_species.toLocaleString()} ${t('nearbySpecies')}`
@@ -453,11 +453,11 @@ const NearbyMushrooms = ({ geo, month }) => {
           {filterEdible ? (
             <div className="space-y-2">
               <div className="flex items-center gap-2 mb-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
-                <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">
+                <span className="w-2 h-2 rounded-pill bg-forest-900 inline-block" />
+                <span className="text-xs font-semibold text-forest-700 uppercase tracking-wide">
                   ✅ {t('edib_edible')}
                 </span>
-                {loadingInfo && <Loader2 size={11} className="animate-spin text-gray-400" />}
+                {loadingInfo && <Loader2 size={11} className="animate-spin text-muted" />}
               </div>
               {[...highTier, ...midTier, ...lowTier].map((item, i) => (
                 <SpeciesCard key={item.species} species={item.species}
@@ -470,11 +470,11 @@ const NearbyMushrooms = ({ geo, month }) => {
               {highTier.length > 0 && (
                 <div>
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
-                    <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">
+                    <span className="w-2 h-2 rounded-pill bg-forest-900 inline-block" />
+                    <span className="text-xs font-semibold text-forest-700 uppercase tracking-wide">
                       {t('highProbLabel')}
                     </span>
-                    {loadingInfo && <Loader2 size={11} className="animate-spin text-gray-400" />}
+                    {loadingInfo && <Loader2 size={11} className="animate-spin text-muted" />}
                   </div>
                   <div className="space-y-2">
                     {highTier.map((item, i) => (
@@ -489,8 +489,8 @@ const NearbyMushrooms = ({ geo, month }) => {
               {midTier.length > 0 && (
                 <div>
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="w-2 h-2 rounded-full bg-teal-300 inline-block" />
-                    <span className="text-xs font-semibold text-teal-600 uppercase tracking-wide">
+                    <span className="w-2 h-2 rounded-pill bg-sage-200 inline-block" />
+                    <span className="text-xs font-semibold text-forest-700 uppercase tracking-wide">
                       {t('goodProbLabel')}
                     </span>
                   </div>
@@ -507,8 +507,8 @@ const NearbyMushrooms = ({ geo, month }) => {
               {lowTier.length > 0 && (
                 <div>
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="w-2 h-2 rounded-full bg-gray-300 inline-block" />
-                    <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                    <span className="w-2 h-2 rounded-pill bg-sage-200 inline-block" />
+                    <span className="text-xs font-semibold text-muted uppercase tracking-wide">
                       {t('possibleLabel')}
                     </span>
                   </div>
@@ -526,15 +526,15 @@ const NearbyMushrooms = ({ geo, month }) => {
 
           {filterEdible && total === 0 && !loadingInfo && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-              className="text-center py-8 text-gray-400">
+              className="text-center py-8 text-muted">
               <div className="text-3xl mb-2">🍄</div>
-              <p className="text-sm font-medium text-gray-500">{t('filterNoResults')}</p>
+              <p className="text-sm font-medium text-muted">{t('filterNoResults')}</p>
               <button onClick={() => setFilterEdible(false)}
-                className="mt-3 text-xs text-emerald-600 underline">{t('filterShowAll')}</button>
+                className="mt-3 text-xs text-forest-700 underline">{t('filterShowAll')}</button>
             </motion.div>
           )}
 
-          <p className="text-xs text-gray-400 text-center pt-1 leading-relaxed">
+          <p className="text-xs text-muted text-center pt-1 leading-relaxed">
             {t('nearbyDisclaimer')}
           </p>
         </motion.div>

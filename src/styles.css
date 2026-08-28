@@ -1,3 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --color-primary:        #2E4B3A;
+  --color-primary-soft:   #526B5B;
+  --color-sage:           #819482;
+  --color-sage-light:     #C7D0C5;
+  --color-background:     #FAF8F2;
+  --color-surface:        #FFFFFF;
+  --color-surface-alt:    #F2EFE6;
+  --color-text:           #23352B;
+  --color-text-secondary: #68736C;
+  --radius-card:          24px;
+  --radius-button:        16px;
+  --radius-input:         14px;
+  --radius-pill:          999px;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: var(--color-background);
+  color: var(--color-text);
+}

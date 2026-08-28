@@ -50,9 +50,9 @@ const PilzkontrolleInfo = () => {
     <div className="space-y-4">
       {/* Emergència */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-        className="bg-red-600 rounded-2xl p-4 text-white shadow-md">
+        className="bg-red-600 rounded-card p-4 text-white shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-white/20 rounded-xl shrink-0"><Phone size={20} /></div>
+          <div className="p-2.5 bg-white/20 rounded-btn shrink-0"><Phone size={20} /></div>
           <div>
             <p className="text-red-100 text-xs font-medium uppercase tracking-wide mb-0.5">
               {t('pilzEmergency')}
@@ -65,7 +65,7 @@ const PilzkontrolleInfo = () => {
 
       {/* Avís */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}
-        className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-start gap-2.5">
+        className="bg-amber-50 border border-amber-200 rounded-card p-3 flex items-start gap-2.5">
         <AlertTriangle size={15} className="text-amber-500 mt-0.5 shrink-0" />
         <p className="text-amber-700 text-xs leading-relaxed">{t('pilzWarning')}</p>
       </motion.div>
@@ -73,15 +73,15 @@ const PilzkontrolleInfo = () => {
       {/* Directori VSVP */}
       <motion.a href="https://www.vsvp.ch" target="_blank" rel="noopener noreferrer"
         initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
-        className="block bg-gradient-to-r from-emerald-500 to-teal-600 rounded-2xl p-4
-                   text-white shadow-md hover:shadow-lg transition-shadow">
+        className="block bg-forest-900 rounded-card p-4
+                   text-cream-100 shadow-sm hover:shadow-sm transition-shadow">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-emerald-100 text-xs font-medium uppercase tracking-wide mb-1">
+            <p className="text-cream-100 text-xs font-medium uppercase tracking-wide mb-1">
               {t('pilzDirTitle')}
             </p>
             <p className="text-xl font-bold">vsvp.ch</p>
-            <p className="text-emerald-100 text-sm mt-0.5">{t('pilzDirCTA')}</p>
+            <p className="text-cream-100 text-sm mt-0.5">{t('pilzDirCTA')}</p>
           </div>
           <ExternalLink size={20} className="opacity-70 shrink-0" />
         </div>
@@ -90,15 +90,15 @@ const PilzkontrolleInfo = () => {
       {/* Cerca */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
         className="relative">
-        <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+        <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
         <input
           type="text"
           placeholder={t('pilzSearchPlaceholder')}
           value={query}
           onChange={e => setQuery(e.target.value)}
-          className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl
-                     focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100
-                     bg-white placeholder:text-gray-300"
+          className="w-full pl-9 pr-4 py-2.5 text-sm border border-sage-200 rounded-btn
+                     focus:outline-none focus:border-forest-700 focus:ring-2 focus:ring-cream-100
+                     bg-white placeholder:text-muted"
         />
       </motion.div>
 
@@ -108,58 +108,57 @@ const PilzkontrolleInfo = () => {
           <motion.div key={c.abbr}
             initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }}
             transition={{ delay: i * 0.02, duration: 0.2 }}
-            className={`bg-white rounded-xl border shadow-sm overflow-hidden
-                        ${c.highlight ? 'border-emerald-200' : 'border-gray-100'}`}>
+            className={`bg-white rounded-btn border shadow-sm overflow-hidden
+                        ${c.highlight ? 'border-forest-900' : 'border-sage-200'}`}>
             <div className="flex items-center gap-3 p-3">
-              <div className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center
-                              text-xs font-black text-white
-                              ${c.highlight ? 'bg-emerald-500' : 'bg-teal-600'}`}>
+              <div className={`shrink-0 w-10 h-10 rounded-input flex items-center justify-center
+                              text-xs font-black text-white bg-forest-900`}>
                 {c.abbr}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 mb-0.5">
-                  <span className="text-sm font-semibold text-gray-800">{c.name}</span>
+                  <span className="text-sm font-semibold text-ink">{c.name}</span>
                   <span className="text-xs">{LANG_FLAG[c.lang] || ''}</span>
                   {c.highlight && (
-                    <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5
-                                     rounded-full font-medium">
+                    <span className="text-xs bg-cream-100 text-forest-700 px-1.5 py-0.5
+                                     rounded-pill font-medium">
                       {t('pilzPermanent')}
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-gray-400">{c.url.replace('https://', '')}</p>
+                <p className="text-xs text-muted">{c.url.replace('https://', '')}</p>
               </div>
               <a href={c.url} target="_blank" rel="noopener noreferrer"
-                className="shrink-0 p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50
-                           rounded-lg transition-colors">
+                className="shrink-0 p-2 text-muted hover:text-forest-700 hover:bg-cream-100
+                           rounded-input transition-colors">
                 <ExternalLink size={14} />
               </a>
             </div>
           </motion.div>
         ))}
         {filtered.length === 0 && (
-          <div className="text-center py-8 text-gray-400 text-sm">{t('pilzNoCanton')}</div>
+          <div className="text-center py-8 text-muted text-sm">{t('pilzNoCanton')}</div>
         )}
       </div>
 
       {/* Consells */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
-        className="bg-gray-50 rounded-2xl p-4 space-y-2.5">
-        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
+        className="bg-cream-50 rounded-card p-4 space-y-2.5">
+        <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">
           🍄 {t('pilzTipsTitle')}
         </p>
         {t('pilzTips').map(([icon, text]) => (
           <div key={text} className="flex items-start gap-2.5">
             <span className="text-base shrink-0 mt-0.5">{icon}</span>
-            <p className="text-xs text-gray-600 leading-relaxed">{text}</p>
+            <p className="text-xs text-muted leading-relaxed">{text}</p>
           </div>
         ))}
       </motion.div>
 
-      <p className="text-xs text-gray-400 text-center pb-2 leading-relaxed">
+      <p className="text-xs text-muted text-center pb-2 leading-relaxed">
         VSVP · Verband Schweizerischer Pilzfachleute ·{' '}
         <a href="https://www.vsvp.ch" target="_blank" rel="noopener noreferrer"
-          className="underline hover:text-emerald-600">vsvp.ch</a>
+          className="underline hover:text-forest-700">vsvp.ch</a>
       </p>
     </div>
   );

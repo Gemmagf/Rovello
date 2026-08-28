@@ -1,45 +1,23 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { AlertCircle, CheckCircle, Heart, X, Loader2 } from 'lucide-react';
+import { AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 
 const ResultDisplay = ({ result, isLoading }) => {
   if (isLoading) {
     return (
       <motion.div
-        className="bg-white/80 backdrop-blur-xl border border-gray-200/50 rounded-3xl p-8 text-center shadow-xl flex flex-col items-center justify-center"
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.9 }}
-        transition={{ duration: 0.5, ease: "easeInOut" }}
+        className="bg-white border border-sage-200 rounded-card p-8 text-center flex flex-col items-center"
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       >
         <motion.div
           animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="relative w-16 h-16 mb-4"
+          transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
+          className="mb-4"
         >
-          <Loader2 className="w-16 h-16 text-purple-500 absolute" />
-          <motion.div
-            className="w-16 h-16 border-4 border-purple-200/50 rounded-full absolute"
-            animate={{ rotate: -360, scale: [1, 1.1, 1] }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-          />
+          <Loader2 className="w-10 h-10 text-forest-700" strokeWidth={1.5} />
         </motion.div>
-        <motion.p
-          className="text-gray-600 font-semibold mb-2"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.3 }}
-        >
-          Màgia fúngica en acció!
-        </motion.p>
-        <motion.p
-          className="text-gray-500 text-sm"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, duration: 0.3 }}
-        >
-          Analitzant el teu bolet misteriós... una mica més de paciència, serà èpic!
-        </motion.p>
+        <p className="text-ink font-medium mb-1">Analitzant el teu bolet...</p>
+        <p className="text-muted text-sm">Un moment, si us plau.</p>
       </motion.div>
     );
   }
@@ -48,89 +26,62 @@ const ResultDisplay = ({ result, isLoading }) => {
 
   const isEdible = result.edible;
 
+  // Etiqueta de comestibilitat amb icona + color (accessible: mai sols pel color)
+  const edibilityLabel = isEdible ? 'Comestible' : 'Tòxic / No recomanat';
+  const edibilityIcon  = isEdible ? '✓' : '✕';
+  const edibilityBg    = isEdible
+    ? 'bg-green-50 text-green-800 border border-green-200'
+    : 'bg-red-50 text-red-800 border border-red-200';
+
   return (
     <motion.div
-      className={`bg-white/90 backdrop-blur-xl border rounded-3xl p-6 shadow-xl overflow-hidden ${
-        isEdible ? 'border-green-200' : 'border-red-200'
-      }`}
-      initial={{ opacity: 0, y: 50, scale: 0.8 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -50, scale: 0.8 }}
-      transition={{ type: "spring", stiffness: 300, damping: 30, duration: 0.6 }}
+      className="bg-white border border-sage-200 rounded-card p-6 overflow-hidden"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.3 }}
     >
-      <motion.div
-        className="flex items-start gap-4 mb-4"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
-      >
-        {isEdible ? (
-          <motion.div
-            className="flex-shrink-0"
-            initial={{ scale: 0, rotate: -180 }}
-            animate={{ scale: 1, rotate: 0 }}
-            transition={{ type: "spring", stiffness: 200 }}
-          >
-            <CheckCircle className="w-8 h-8 text-green-500 mt-1" />
-          </motion.div>
-        ) : (
-          <motion.div
-            className="flex-shrink-0"
-            initial={{ scale: 0, rotate: 180 }}
-            animate={{ scale: 1, rotate: 0 }}
-            transition={{ type: "spring", stiffness: 200 }}
-          >
-            <AlertCircle className="w-8 h-8 text-red-500 mt-1" />
-          </motion.div>
-        )}
-        <div className="flex-1 min-w-0">
-          <motion.h3
-            className="text-xl font-bold text-gray-800 mb-1"
-            initial={{ x: -20 }}
-            animate={{ x: 0 }}
-            transition={{ delay: 0.3, duration: 0.4 }}
-          >
-            {result.name}
-          </motion.h3>
-          <motion.p
-            className="text-gray-600 mb-3"
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.4, duration: 0.4 }}
-          >
-            {result.description}
-          </motion.p>
-          <motion.div
-            className="flex items-center gap-4 text-sm"
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.5, duration: 0.3 }}
-          >
-            <motion.span
-              className={`px-3 py-1 rounded-full font-semibold ${
-                isEdible ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-              }`}
-              whileHover={{ scale: 1.05 }}
-            >
-              {isEdible ? '🍄 Comestible' : '☠️ Tòxic'}
-            </motion.span>
-            <span className="flex items-center gap-1 text-gray-500">
-              {isEdible ? <Heart className="w-4 h-4" /> : <X className="w-4 h-4" />}
-              {result.toxicity || 'Nivell de risc'}
-            </span>
-          </motion.div>
+      {/* Capçalera */}
+      <div className="flex items-start gap-3 mb-4">
+        <div className="mt-0.5 shrink-0">
+          {isEdible
+            ? <CheckCircle className="w-6 h-6 text-green-600" strokeWidth={1.5} />
+            : <AlertCircle className="w-6 h-6 text-red-600"   strokeWidth={1.5} />
+          }
         </div>
-      </motion.div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-lg font-semibold text-ink leading-tight">{result.name}</h3>
+          {result.scientificName && (
+            <p className="text-sm text-muted italic mt-0.5">{result.scientificName}</p>
+          )}
+        </div>
+        {result.confidence != null && (
+          <span className="shrink-0 text-xs font-medium text-sage-500 bg-cream-100
+                           px-2.5 py-1 rounded-pill border border-sage-200">
+            {Math.round(result.confidence * 100)}%
+          </span>
+        )}
+      </div>
+
+      {/* Descripció */}
+      {result.description && (
+        <p className="text-muted text-sm mb-4 leading-relaxed">{result.description}</p>
+      )}
+
+      {/* Etiqueta comestibilitat */}
+      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-pill text-xs font-semibold mb-4 ${edibilityBg}`}>
+        <span>{edibilityIcon}</span>
+        <span>{edibilityLabel}</span>
+      </span>
+
+      {/* Consell */}
       {result.tips && (
-        <motion.div
-          className="bg-gray-50/50 p-4 rounded-2xl"
-          initial={{ height: 0, opacity: 0 }}
-          animate={{ height: "auto", opacity: 1 }}
-          transition={{ delay: 0.6, duration: 0.4 }}
-        >
-          <h4 className="font-semibold text-gray-700 mb-2">Consell de l’expert:</h4>
-          <p className="text-sm text-gray-600">{result.tips}</p>
-        </motion.div>
+        <div className="bg-cream-50 border border-sage-200 p-4 rounded-input">
+          <h4 className="text-xs font-semibold text-ink uppercase tracking-wide mb-2">
+            Consell de l'expert
+          </h4>
+          <p className="text-sm text-muted leading-relaxed">{result.tips}</p>
+        </div>
       )}
     </motion.div>
   );

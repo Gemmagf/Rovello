@@ -11,7 +11,6 @@ import DataScienceSection from './components/DataScienceSection';
 import { analyzeMushroom, requestGeolocation } from './utils/mushroomAnalyzer';
 
 const API_URL = process.env.REACT_APP_API_URL || 'https://rovello-backend.onrender.com';
-// Desperta el backend en silenci en cuanto carrega l'app
 fetch(`${API_URL}/health`).catch(() => {});
 
 const TAB_IDENTIFICA    = 'identifica';
@@ -19,7 +18,6 @@ const TAB_DESCOBREIX    = 'descobreix';
 const TAB_PILZKONTROLLE = 'pilzkontrolle';
 const TAB_DATA          = 'data';
 
-// ── Contingut de l'app (necessita context de llengua) ────────────────────────
 const AppInner = () => {
   const { t } = useT();
   const [activeTab, setActiveTab] = useState(TAB_IDENTIFICA);
@@ -74,28 +72,28 @@ const AppInner = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 py-8">
+    <div className="min-h-screen bg-cream-50 py-8">
       <div className="container mx-auto px-4 max-w-2xl">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.8, ease: 'easeOut' }}
+          transition={{ duration: 0.6, ease: 'easeOut' }}
         >
           <Header />
 
           {/* Geo status */}
-          <div className="mt-3 text-center text-xs text-gray-500">
+          <div className="mt-3 text-center text-xs text-muted">
             {geoStatus === 'granted' && geo && (
-              <span className={geo.byIP ? 'text-amber-500' : 'text-emerald-600'}>
+              <span className={geo.byIP ? 'text-amber-600' : 'text-forest-700'}>
                 📍 {geo.lat.toFixed(3)}°, {geo.lon.toFixed(3)}°
                 {' · '}{geo.byIP ? '🌐 ubicació per IP (aprox.)' : t('geoActive')}
               </span>
             )}
             {geoStatus === 'denied' && (
-              <span className="text-amber-500">
+              <span className="text-amber-600">
                 📍 {t('geoDenied')}{' '}
                 <button onClick={tryGeolocation}
-                  className="underline hover:text-amber-700 font-semibold ml-1">
+                  className="underline hover:text-amber-800 font-medium ml-1">
                   {t('geoRetry')}
                 </button>
               </span>
@@ -105,17 +103,17 @@ const AppInner = () => {
             )}
           </div>
 
-          {/* Tab bar — 4 tabs */}
-          <div className="flex bg-white rounded-2xl p-1 mt-5 shadow-sm border border-gray-100">
+          {/* Tab bar */}
+          <div className="flex bg-white rounded-card p-1 mt-5 shadow-sm border border-sage-200">
             {TABS.map(({ key, icon, label }) => (
               <button
                 key={key}
                 onClick={() => setActiveTab(key)}
-                className={`flex-1 flex items-center justify-center gap-1 py-2.5 rounded-xl
+                className={`flex-1 flex items-center justify-center gap-1 py-2.5 rounded-btn
                   text-xs font-semibold transition-all duration-200
                   ${activeTab === key
-                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700'
+                    ? 'bg-forest-900 text-cream-100 shadow-sm'
+                    : 'text-muted hover:text-ink'
                   }`}
               >
                 <span>{icon}</span>
@@ -147,7 +145,7 @@ const AppInner = () => {
                       result={result} isLoading={isAnalyzing} />
                   </AnimatePresence>
                   {result && result.contextUsed && (
-                    <p className="text-xs text-center text-emerald-600">{t('contextUsed')}</p>
+                    <p className="text-xs text-center text-forest-700">{t('contextUsed')}</p>
                   )}
                 </motion.div>
               )}
@@ -179,18 +177,17 @@ const AppInner = () => {
           </div>
         </motion.div>
 
-        <motion.div className="mt-12 text-center text-gray-400 text-xs"
+        <motion.div className="mt-12 text-center text-muted text-xs"
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}>
           🍄 {t('footerMain')}
           <br />
-          <span className="text-gray-300">{t('footerSub')}</span>
+          <span className="text-sage-500">{t('footerSub')}</span>
         </motion.div>
       </div>
     </div>
   );
 };
 
-// ── Root: envolta amb el proveïdor de llengua ─────────────────────────────────
 const App = () => (
   <LanguageProvider>
     <AppInner />
