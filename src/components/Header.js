@@ -21,23 +21,38 @@ const Header = () => {
       <div className="flex items-start justify-between gap-4">
         {/* Logo + títol */}
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-cream-100/10 rounded-btn">
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
-              {/* Làmines radials inspirades en el logo */}
-              {Array.from({ length: 12 }).map((_, i) => {
-                const angle = (i / 12) * Math.PI;
-                const x1 = 12 + 5 * Math.cos(angle - Math.PI / 2);
-                const y1 = 8  + 4 * Math.sin(angle - Math.PI / 2);
+          <div className="rounded-btn overflow-hidden" style={{ width: 48, height: 48 }}>
+            <svg width="48" height="48" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <rect width="100" height="100" rx="22" fill="#2E4B3A" />
+              {/* Cap outline */}
+              <path d="M50 68 L50 32 A30 30 0 0 1 80 62 Z" fill="#F2EFE6" />
+              <path d="M50 68 L50 32 A30 30 0 0 0 20 62 Z" fill="#F2EFE6" />
+              {/* Radial gill lines on right half */}
+              {[15,30,45,60,75].map((deg, i) => {
+                const rad = (deg * Math.PI) / 180;
                 return (
-                  <line key={i}
-                    x1="12" y1="13"
-                    x2={x1.toFixed(2)} y2={y1.toFixed(2)}
-                    stroke="#F2EFE6" strokeWidth="1.2" strokeLinecap="round"
+                  <line key={`r${i}`}
+                    x1="50" y1="68"
+                    x2={(50 + 32 * Math.sin(rad)).toFixed(1)}
+                    y2={(68 - 32 * Math.cos(rad)).toFixed(1)}
+                    stroke="#2E4B3A" strokeWidth="2.2" strokeLinecap="round"
+                  />
+                );
+              })}
+              {/* Radial gill lines on left half */}
+              {[15,30,45,60,75].map((deg, i) => {
+                const rad = (deg * Math.PI) / 180;
+                return (
+                  <line key={`l${i}`}
+                    x1="50" y1="68"
+                    x2={(50 - 32 * Math.sin(rad)).toFixed(1)}
+                    y2={(68 - 32 * Math.cos(rad)).toFixed(1)}
+                    stroke="#2E4B3A" strokeWidth="2.2" strokeLinecap="round"
                   />
                 );
               })}
               {/* Tija */}
-              <rect x="10.5" y="13" width="3" height="6" rx="1.5" fill="#F2EFE6" />
+              <rect x="43" y="68" width="14" height="18" rx="4" fill="#F2EFE6" />
             </svg>
           </div>
           <div>
