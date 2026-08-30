@@ -36,7 +36,7 @@ const UploadArea = ({ onImageSelect }) => {
 
   return (
     <motion.div
-      className={`relative bg-white border-2 rounded-card p-8 text-center transition-all duration-300 ${
+      className={`relative bg-white border-2 rounded-card p-6 text-center transition-all duration-300 ${
         dragActive
           ? 'border-forest-700 bg-cream-50 shadow-md'
           : 'border-sage-200 hover:border-forest-700/40'
@@ -85,7 +85,7 @@ const UploadArea = ({ onImageSelect }) => {
           </label>
           <input id="file-upload" type="file" accept="image/*"
             onChange={handleFileSelect} className="hidden" />
-          <p className="mt-4 text-xs text-sage-500">O arrossega aquí</p>
+          <p className="mt-4 text-xs text-sage-500 hidden sm:block">O arrossega aquí</p>
         </>
       )}
     </motion.div>

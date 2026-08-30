@@ -18,6 +18,12 @@
   --radius-button:        16px;
   --radius-input:         14px;
   --radius-pill:          999px;
+  --color-alert:          #C93A32;
+  --color-border:         #C7D0C5;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {

@@ -6,7 +6,7 @@ const ResultDisplay = ({ result, isLoading }) => {
   if (isLoading) {
     return (
       <motion.div
-        className="bg-white border border-sage-200 rounded-card p-8 text-center flex flex-col items-center"
+        className="bg-white border border-sage-200 rounded-card p-6 text-center flex flex-col items-center"
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       >
         <motion.div

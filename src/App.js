@@ -8,6 +8,7 @@ import ResultDisplay from './components/ResultDisplay';
 import NearbyMushrooms from './components/NearbyMushrooms';
 import PilzkontrolleInfo from './components/PilzkontrolleInfo';
 import DataScienceSection from './components/DataScienceSection';
+import { Search, MapPin, Microscope, BarChart2 } from 'lucide-react';
 import { analyzeMushroom, requestGeolocation } from './utils/mushroomAnalyzer';
 
 const API_URL = process.env.REACT_APP_API_URL || 'https://rovello-backend.onrender.com';
@@ -65,15 +66,15 @@ const AppInner = () => {
   };
 
   const TABS = [
-    { key: TAB_IDENTIFICA,    icon: '🔍', label: t('tabIdentifica') },
-    { key: TAB_DESCOBREIX,    icon: '🗺️', label: t('tabDescobreix') },
-    { key: TAB_PILZKONTROLLE, icon: '🔬', label: t('tabPilzkontrolle') },
-    { key: TAB_DATA,          icon: '📊', label: t('tabData') },
+    { key: TAB_IDENTIFICA,    icon: <Search size={16} strokeWidth={1.5} />,     label: t('tabIdentifica') },
+    { key: TAB_DESCOBREIX,    icon: <MapPin size={16} strokeWidth={1.5} />,     label: t('tabDescobreix') },
+    { key: TAB_PILZKONTROLLE, icon: <Microscope size={16} strokeWidth={1.5} />, label: t('tabPilzkontrolle') },
+    { key: TAB_DATA,          icon: <BarChart2 size={16} strokeWidth={1.5} />,  label: t('tabData') },
   ];
 
   return (
     <div className="min-h-screen bg-cream-50 py-8">
-      <div className="container mx-auto px-4 max-w-2xl">
+      <div className="max-w-[720px] mx-auto px-4">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -104,12 +105,12 @@ const AppInner = () => {
           </div>
 
           {/* Tab bar */}
-          <div className="flex bg-white rounded-card p-1 mt-5 shadow-sm border border-sage-200">
+          <div className="grid grid-cols-4 bg-white rounded-card p-1 mt-5 shadow-sm border border-sage-200">
             {TABS.map(({ key, icon, label }) => (
               <button
                 key={key}
                 onClick={() => setActiveTab(key)}
-                className={`flex-1 flex items-center justify-center gap-1 py-2.5 rounded-btn
+                className={`flex flex-col items-center justify-center gap-0.5 py-2.5 rounded-btn
                   text-xs font-semibold transition-all duration-200
                   ${activeTab === key
                     ? 'bg-forest-900 text-cream-100 shadow-sm'
@@ -117,8 +118,7 @@ const AppInner = () => {
                   }`}
               >
                 <span>{icon}</span>
-                <span className="hidden sm:inline">{label}</span>
-                <span className="sm:hidden">{label.substring(0, 4)}</span>
+                <span>{label}</span>
               </button>
             ))}
           </div>

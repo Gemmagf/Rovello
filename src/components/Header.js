@@ -51,21 +51,19 @@ const Header = () => {
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.5, ease: 'easeOut' }}
     >
-      <div className="flex items-start justify-between gap-4">
-        {/* Logo + títol */}
-        <div className="flex items-center gap-4">
-          <div className="rounded-btn overflow-hidden shrink-0" style={{ width: 48, height: 48 }}>
-            <RovelloLogo size={48} />
+      <div className="flex flex-col gap-3">
+        {/* Row 1: logo+title on left, language pills on right */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="rounded-btn overflow-hidden shrink-0" style={{ width: 44, height: 44 }}>
+              <RovelloLogo size={44} />
+            </div>
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight">{t('appTitle')}</h1>
+              <p className="text-cream-100/60 text-sm mt-0.5">{t('appSubtitle')}</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">{t('appTitle')}</h1>
-            <p className="text-cream-100/60 text-sm mt-0.5">{t('appSubtitle')}</p>
-          </div>
-        </div>
-
-        {/* Language + disclaimer */}
-        <div className="flex flex-col items-end gap-2 shrink-0">
-          <div className="flex gap-1">
+          <div className="flex gap-1 shrink-0">
             {LANGS.map(({ code, label }) => (
               <button
                 key={code}
@@ -80,10 +78,12 @@ const Header = () => {
               </button>
             ))}
           </div>
-          <p className="text-xs text-cream-100/50 text-right max-w-[180px] leading-tight">
-            {t('appDisclaimer')}
-          </p>
         </div>
+
+        {/* Row 2: disclaimer full width */}
+        <p className="text-xs text-cream-100/50 leading-tight">
+          {t('appDisclaimer')}
+        </p>
       </div>
     </motion.div>
   );

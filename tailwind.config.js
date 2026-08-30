@@ -18,9 +18,13 @@ module.exports = {
         },
         ink: '#23352B',
         muted: '#68736C',
+        alert: '#C93A32',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
+      },
+      boxShadow: {
+        'card': '0 6px 18px rgba(35,53,43,0.08)',
       },
       borderRadius: {
         card:   '24px',

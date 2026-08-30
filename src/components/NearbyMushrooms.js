@@ -417,7 +417,7 @@ const NearbyMushrooms = ({ geo, month }) => {
             className="flex flex-col items-center justify-center py-14 gap-3">
             <Loader2 size={34} className="animate-spin text-forest-700" />
             <p className="text-muted text-sm">
-              {waking ? '⏳ Despertant servidor... (fins 30 seg)' : t('nearbyLoading')}
+              {waking ? '⏳ Preparant identificador... (fins 30 seg)' : t('nearbyLoading')}
             </p>
             {waking && (
               <p className="text-muted text-xs text-center max-w-[220px] leading-relaxed">
