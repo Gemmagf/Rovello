@@ -155,21 +155,31 @@ def load_prior():
 
 
 # ----------------------------------------------------------------------------
-# Inicialització
+# Inicialització lazy — el prior es carrega a l'arrencada (lleuger),
+# el model torch es carrega al primer /predict (evita OOM/timeout al free tier)
 # ----------------------------------------------------------------------------
-log.info("Inicialitzant servidor Rovello v2...")
-INFER = load_inference()
-PRIOR = load_prior()
-
-# Verifica que prior i model usen el mateix label_map (si tots dos existeixen)
-if PRIOR is not None and INFER.idx_to_class != PRIOR.species_list:
-    log.warning(
-        "ATENCIÓ: ordre de classes del model i del prior no coincideix. "
-        "Re-entrena el prior amb el label_map.json del model."
-    )
+import threading as _threading
 
 APP = Flask(__name__)
 CORS(APP)
+
+log.info("Inicialitzant servidor Rovello...")
+PRIOR = load_prior()
+INFER = None
+_infer_lock = _threading.Lock()
+
+
+def _get_infer():
+    global INFER
+    if INFER is not None:
+        return INFER
+    with _infer_lock:
+        if INFER is None:
+            log.info("Carregant model (primer /predict)...")
+            INFER = load_inference()
+            if PRIOR is not None and INFER.idx_to_class != PRIOR.species_list:
+                log.warning("Ordre de classes del model i prior no coincideix.")
+        return INFER
 
 
 # ----------------------------------------------------------------------------
@@ -177,10 +187,12 @@ CORS(APP)
 # ----------------------------------------------------------------------------
 @APP.route("/health", methods=["GET"])
 def health():
+    infer = INFER  # pot ser None si el model no s'ha carregat encara
     return jsonify({
         "status": "ok",
-        "backend": "torch" if isinstance(INFER, TorchInference) else "tf",
-        "classes": len(INFER.idx_to_class),
+        "backend": "torch" if isinstance(infer, TorchInference) else ("tf" if infer else "pending"),
+        "model_loaded": infer is not None,
+        "classes": len(infer.idx_to_class) if infer else 0,
         "prior_loaded": PRIOR is not None,
     })
 
@@ -225,7 +237,8 @@ def predict():
         beta = DEFAULT_BETA
 
     try:
-        image_probs = INFER.predict_probs(img)
+        infer = _get_infer()
+        image_probs = infer.predict_probs(img)
     except Exception as e:
         log.exception("Error d'inferència")
         return jsonify({"error": "Inference error", "detail": str(e)}), 500
@@ -255,7 +268,7 @@ def predict():
     for i in top_idx:
         item = {
             "class_index": int(i),
-            "class_name": INFER.idx_to_class[int(i)],
+            "class_name": infer.idx_to_class[int(i)],
             "prob": float(fused[int(i)]),
             "image_prob": float(image_probs[int(i)]),
         }
@@ -265,7 +278,7 @@ def predict():
 
     response = {
         "predictions": predictions,
-        "num_classes": len(INFER.idx_to_class),
+        "num_classes": len(infer.idx_to_class),
         "context_used": use_prior,
     }
     if use_prior:
