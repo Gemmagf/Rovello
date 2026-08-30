@@ -49,6 +49,7 @@ DEFAULT_TORCH_MODEL = PROJECT_ROOT / "ml" / "models" / "best" / "best.pt"
 DEFAULT_TF_MODEL = BACKEND_DIR / "models" / "mushroom_model.h5"
 DEFAULT_LE = BACKEND_DIR / "models" / "label_encoder.pkl"
 DEFAULT_PRIOR = PROJECT_ROOT / "ml" / "priors" / "geo_temporal_prior.pkl"
+_PRIOR_FALLBACK = BACKEND_DIR / "models" / "geo_temporal_prior.pkl"
 
 MODEL_BACKEND = os.environ.get("ROVELLO_MODEL_BACKEND", "torch").lower()
 MODEL_PATH = Path(os.environ.get("ROVELLO_MODEL_PATH", DEFAULT_TORCH_MODEL))
@@ -138,20 +139,25 @@ def load_inference():
     if DEFAULT_TF_MODEL.exists():
         log.info(f"Carregant TF model (fallback): {DEFAULT_TF_MODEL}")
         return TFInference(DEFAULT_TF_MODEL, DEFAULT_LE)
-    raise SystemExit(
+    raise RuntimeError(
         f"No hi ha cap model disponible. Esperava {MODEL_PATH} (torch) o "
         f"{DEFAULT_TF_MODEL} (tf)."
     )
 
 
 def load_prior():
-    if not PRIOR_PATH.exists():
-        log.warning(f"Prior geo-temporal no trobat a {PRIOR_PATH} — la fusió estarà desactivada.")
+    path = PRIOR_PATH if PRIOR_PATH.exists() else (_PRIOR_FALLBACK if _PRIOR_FALLBACK.exists() else None)
+    if path is None:
+        log.warning("Prior geo-temporal no trobat — fusió desactivada.")
         return None
     sys.path.insert(0, str(PROJECT_ROOT))
-    from ml.priors.fusion import GeoTemporalPrior  # type: ignore
-    log.info(f"Carregant prior geo-temporal: {PRIOR_PATH}")
-    return GeoTemporalPrior.load(PRIOR_PATH)
+    sys.path.insert(0, str(BACKEND_DIR))
+    try:
+        from ml.priors.fusion import GeoTemporalPrior  # type: ignore
+    except ImportError:
+        from fusion import GeoTemporalPrior  # type: ignore (backend/ al path)
+    log.info(f"Carregant prior: {path}")
+    return GeoTemporalPrior.load(path)
 
 
 # ----------------------------------------------------------------------------
