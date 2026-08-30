@@ -2,6 +2,39 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useT } from '../context/LanguageContext';
 
+// Logo que replica les làmines radials de la imatge original
+const RovelloLogo = ({ size = 48 }) => {
+  const cx = 50, cy = 58, r = 34;
+  const stemTop = cy;
+  // 13 línies radials de 0° a 180° (semicercle superior)
+  const angles = Array.from({ length: 13 }, (_, i) => (i * 180) / 12);
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100" height="100" rx="20" fill="#2E4B3A" />
+      {/* Cap semicircle */}
+      <path
+        d={`M${cx - r} ${stemTop} A${r} ${r} 0 0 1 ${cx + r} ${stemTop} Z`}
+        fill="#F2EFE6"
+      />
+      {/* Radial gill lines */}
+      {angles.map((deg, i) => {
+        const rad = (deg * Math.PI) / 180;
+        const x2 = (cx + r * Math.cos(Math.PI - rad)).toFixed(2);
+        const y2 = (stemTop - r * Math.sin(rad)).toFixed(2);
+        return (
+          <line key={i}
+            x1={cx} y1={stemTop}
+            x2={x2} y2={y2}
+            stroke="#2E4B3A" strokeWidth="2.5" strokeLinecap="round"
+          />
+        );
+      })}
+      {/* Stem */}
+      <rect x="43" y={stemTop} width="14" height="20" rx="5" fill="#F2EFE6" />
+    </svg>
+  );
+};
+
 const LANGS = [
   { code: 'ca', label: 'CA' },
   { code: 'en', label: 'EN' },
@@ -21,39 +54,8 @@ const Header = () => {
       <div className="flex items-start justify-between gap-4">
         {/* Logo + títol */}
         <div className="flex items-center gap-4">
-          <div className="rounded-btn overflow-hidden" style={{ width: 48, height: 48 }}>
-            <svg width="48" height="48" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-              <rect width="100" height="100" rx="22" fill="#2E4B3A" />
-              {/* Cap outline */}
-              <path d="M50 68 L50 32 A30 30 0 0 1 80 62 Z" fill="#F2EFE6" />
-              <path d="M50 68 L50 32 A30 30 0 0 0 20 62 Z" fill="#F2EFE6" />
-              {/* Radial gill lines on right half */}
-              {[15,30,45,60,75].map((deg, i) => {
-                const rad = (deg * Math.PI) / 180;
-                return (
-                  <line key={`r${i}`}
-                    x1="50" y1="68"
-                    x2={(50 + 32 * Math.sin(rad)).toFixed(1)}
-                    y2={(68 - 32 * Math.cos(rad)).toFixed(1)}
-                    stroke="#2E4B3A" strokeWidth="2.2" strokeLinecap="round"
-                  />
-                );
-              })}
-              {/* Radial gill lines on left half */}
-              {[15,30,45,60,75].map((deg, i) => {
-                const rad = (deg * Math.PI) / 180;
-                return (
-                  <line key={`l${i}`}
-                    x1="50" y1="68"
-                    x2={(50 - 32 * Math.sin(rad)).toFixed(1)}
-                    y2={(68 - 32 * Math.cos(rad)).toFixed(1)}
-                    stroke="#2E4B3A" strokeWidth="2.2" strokeLinecap="round"
-                  />
-                );
-              })}
-              {/* Tija */}
-              <rect x="43" y="68" width="14" height="18" rx="4" fill="#F2EFE6" />
-            </svg>
+          <div className="rounded-btn overflow-hidden shrink-0" style={{ width: 48, height: 48 }}>
+            <RovelloLogo size={48} />
           </div>
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">{t('appTitle')}</h1>
