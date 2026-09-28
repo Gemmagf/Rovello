@@ -423,6 +423,69 @@ def health():
     })
 
 
+@APP.route("/diag", methods=["GET"])
+def diag():
+    """Diagnòstic de xarxa/entorn per depurar el warmup (DNS, TCP/TLS, IP directa).
+
+    Cada prova corre en un fil amb límit de 8 s perquè la resposta sigui ràpida
+    encara que alguna operació (p. ex. getaddrinfo) es quedi penjada.
+    """
+    import socket
+    import time
+
+    out: dict = {
+        "env": {k: os.environ.get(k) for k in (
+            "ROVELLO_MODEL_BACKEND", "HTTP_PROXY", "HTTPS_PROXY", "http_proxy",
+            "https_proxy", "NO_PROXY", "RENDER", "RENDER_SERVICE_TYPE")},
+        "onnx_path": str(ONNX_PATH),
+        "onnx_exists": ONNX_PATH.exists(),
+        "onnx_part_bytes": (ONNX_PATH.with_suffix(".onnx.part").stat().st_size
+                            if ONNX_PATH.with_suffix(".onnx.part").exists() else None),
+        "warmup": _WARMUP,
+        "threads": [t.name for t in _threading.enumerate()],
+    }
+    try:
+        out["resolv_conf"] = open("/etc/resolv.conf").read()[:500]
+    except Exception as e:
+        out["resolv_conf"] = f"err: {e}"
+
+    def timed(name, fn, limit=8.0):
+        t0 = time.time()
+        res: dict = {}
+
+        def run():
+            try:
+                res["ok"] = fn()
+            except Exception as e:
+                res["err"] = f"{type(e).__name__}: {e}"[:200]
+
+        th = _threading.Thread(target=run, daemon=True)
+        th.start()
+        th.join(limit)
+        res["seconds"] = round(time.time() - t0, 2)
+        res["hung"] = th.is_alive()
+        out[name] = res
+
+    def dns(host):
+        return sorted({a[4][0] for a in socket.getaddrinfo(host, 443)})[:4]
+
+    def tcp(host, port=443):
+        with socket.create_connection((host, port), timeout=5) as s:
+            return s.getpeername()[0]
+
+    timed("dns_github", lambda: dns("github.com"))
+    timed("dns_objects_github", lambda: dns("objects.githubusercontent.com"))
+    timed("dns_inaturalist", lambda: dns("api.inaturalist.org"))
+    timed("dns_pypi", lambda: dns("pypi.org"))
+    timed("tcp_github_443", lambda: tcp("github.com"))
+    timed("tcp_ip_1_1_1_1_443", lambda: tcp("1.1.1.1"))
+    timed("https_github_head", lambda: http_req.head("https://github.com", timeout=5).status_code)
+    timed("https_inaturalist", lambda: http_req.get(
+        "https://api.inaturalist.org/v1/ping", timeout=5).status_code)
+    timed("https_release_head", lambda: http_req.head(ONNX_URL, timeout=5, allow_redirects=False).status_code)
+    return jsonify(out)
+
+
 @APP.route("/predict", methods=["POST"])
 def predict():
     if "image" not in request.files:
