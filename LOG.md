@@ -526,3 +526,33 @@ ml/
 ---
 
 *Pipeline complet validat E2E. Sistema demostrat: imatge + (mes, lat, lon) → predicció millorada via fusió bayesiana. ✅*
+
+---
+
+## Entrada 7 — Entrenament DINOv2 completat ✅
+
+**Data:** 2026-08-27
+
+### Resultat final
+
+| Model | Test top-1 | Test top-5 | Èpoques |
+|---|---|---|---|
+| Smoke test ConvNeXt-T | 49.95% | 76.98% | 3 |
+| ConvNeXt-T definitiu | 72.97% | 90.55% | 50 |
+| DINOv2 frozen | 55.54% | 85.7% | 19 (early stop) |
+| **DINOv2 finetune** | **77.05%** | **92.29%** | **30** |
+
+### Artefactes
+
+- `ml/models/best` → `dinov2_b_finetune` (symlink actualitzat)
+- `ml/models/dinov2_b_finetune/best.pt` — 333 MB
+- `ml/priors/geo_temporal_prior.pkl` — 5.2 MB (1035 KDE)
+
+### Commit
+
+`125a6df` — `server_v2.py` + `04_train.py` + `plot_progress.py`
+
+### Pendent
+
+- [ ] Migrar `render.yaml` a `server_v2.py` + model DINOv2
+- [ ] Allotjar pesos del model (Git LFS o S3/R2) per desplegament a Render
