@@ -85,9 +85,14 @@ def _download(url: str, dest: Path) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(dest.suffix + ".part")
     log.info(f"Descarregant {url} → {dest}")
+    from urllib.parse import urlparse
+    _WARMUP["phase"] = f"connecting {urlparse(url).netloc} for {dest.name}"
     done = 0
-    with http_req.get(url, stream=True, timeout=180) as r:
+    # timeout=(connexió, lectura): que els problemes de xarxa aflorin aviat
+    with http_req.get(url, stream=True, timeout=(20, 90), allow_redirects=True) as r:
+        log.info(f"HTTP {r.status_code} {r.url} content-length={r.headers.get('content-length')}")
         r.raise_for_status()
+        _WARMUP["phase"] = f"downloading {dest.name} (0 MB)"
         with open(tmp, "wb") as f:
             for chunk in r.iter_content(chunk_size=1 << 20):
                 f.write(chunk)
@@ -314,10 +319,13 @@ def load_inference():
         if name not in candidates:
             continue
         pkg, fn = candidates[name]
+        _WARMUP["phase"] = f"backend {name}: checking package {pkg}"
         if importlib.util.find_spec(pkg) is None:
             errors.append(f"{name}: paquet '{pkg}' no instal·lat")
             continue
         try:
+            log.info(f"Intentant backend {name}")
+            _WARMUP["phase"] = f"backend {name}: preparing files"
             return fn()
         except Exception as e:
             log.exception(f"Backend {name} no disponible")
@@ -363,9 +371,11 @@ def _get_infer():
     global INFER
     if INFER is not None:
         return INFER
+    _WARMUP["phase"] = "waiting for lock"
     with _infer_lock:
         if INFER is None:
             log.info("Carregant model...")
+            _WARMUP["phase"] = "selecting backend"
             INFER = load_inference()
             if PRIOR is not None and INFER.idx_to_class != PRIOR.species_list:
                 log.warning("Ordre de classes del model i prior no coincideix.")
