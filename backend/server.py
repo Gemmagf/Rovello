@@ -51,6 +51,10 @@ DEFAULT_LE = BACKEND_DIR / "models" / "label_encoder.pkl"
 DEFAULT_PRIOR = PROJECT_ROOT / "ml" / "priors" / "geo_temporal_prior.pkl"
 _PRIOR_FALLBACK = BACKEND_DIR / "models" / "geo_temporal_prior.pkl"
 
+# Limita threads BLAS/OpenMP ABANS d'importar torch (memòria i CPU al free tier)
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+
 MODEL_BACKEND = os.environ.get("ROVELLO_MODEL_BACKEND", "torch").lower()
 MODEL_PATH = Path(os.environ.get("ROVELLO_MODEL_PATH", DEFAULT_TORCH_MODEL))
 PRIOR_PATH = Path(os.environ.get("ROVELLO_PRIOR_PATH", DEFAULT_PRIOR))
@@ -111,15 +115,30 @@ class TorchInference:
         log.info(f"PyTorch device: {self.device}")
         # Free tier (512 MB): limita threads i carrega el checkpoint amb mmap
         # per no duplicar els pesos en memòria durant la càrrega.
-        torch.set_num_threads(max(1, min(2, os.cpu_count() or 1)))
+        torch.set_num_threads(max(1, int(os.environ.get("OMP_NUM_THREADS", "1"))))
 
         ckpt = torch.load(ckpt_path, map_location="cpu", mmap=True)
         backbone = ckpt["backbone"]
         num_classes = ckpt["num_classes"]
         img_size = ckpt.get("img_size", 224)
         log.info(f"Checkpoint: backbone={backbone} classes={num_classes} img={img_size}")
-        self.model = build_model_for_inference(backbone, num_classes)
-        self.model.load_state_dict(ckpt["model"])
+        # Construeix el model al device "meta" (no reserva memòria per a pesos
+        # aleatoris) i assigna directament els tensors mmap del checkpoint:
+        # el pic de memòria baixa de ~2x a ~1x la mida del model. Un forward
+        # de prova valida que cap buffer hagi quedat a "meta"; si falla,
+        # càrrega estàndard.
+        try:
+            with torch.device("meta"):
+                self.model = build_model_for_inference(backbone, num_classes)
+            self.model.load_state_dict(ckpt["model"], assign=True)
+            self.model.eval()
+            with torch.no_grad():
+                self.model(torch.zeros(1, 3, img_size, img_size))
+            log.info("Model carregat amb assign=True (memòria mínima)")
+        except Exception as e:
+            log.warning(f"Càrrega amb assign=True ha fallat ({e!r}); càrrega estàndard")
+            self.model = build_model_for_inference(backbone, num_classes)
+            self.model.load_state_dict(ckpt["model"])
         del ckpt
         import gc
         gc.collect()
@@ -241,13 +260,25 @@ def _get_infer():
         return INFER
 
 
+# Estat del warmup, visible a /health per diagnosticar el desplegament
+_WARMUP = {"state": "idle", "error": None, "seconds": None}
+
+
 def _warmup():
     """Escalfa el model en segon pla just després d'arrencar, sense bloquejar
     el health check de Render. Si falla, es reintenta al primer /predict."""
+    import time
+    t0 = time.time()
+    _WARMUP["state"] = "loading"
     try:
         _get_infer()
-    except Exception:
+        _WARMUP["state"] = "ready"
+    except Exception as e:
         log.exception("Warmup del model ha fallat")
+        _WARMUP["state"] = "failed"
+        _WARMUP["error"] = f"{type(e).__name__}: {e}"[:300]
+    finally:
+        _WARMUP["seconds"] = round(time.time() - t0, 1)
 
 
 if os.environ.get("ROVELLO_WARMUP", "1") != "0":
@@ -266,6 +297,8 @@ def health():
         "model_loaded": infer is not None,
         "classes": len(infer.idx_to_class) if infer else 0,
         "prior_loaded": PRIOR is not None,
+        "warmup": _WARMUP,
+        "commit": os.environ.get("RENDER_GIT_COMMIT", "")[:7] or None,
     })
 
 
