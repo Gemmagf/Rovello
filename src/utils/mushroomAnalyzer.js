@@ -37,7 +37,13 @@ export const analyzeMushroom = async (imageFile, context = {}) => {
     });
 
     if (!response.ok) {
-      throw new Error("Error en la resposta del servidor");
+      // Mostra el motiu real que retorna el backend (p. ex. model carregant-se)
+      let detail = "";
+      try {
+        const err = await response.json();
+        detail = err.detail || err.error || "";
+      } catch {}
+      throw new Error(detail || `Error del servidor (${response.status})`);
     }
 
     const data = await response.json();
@@ -71,7 +77,7 @@ export const analyzeMushroom = async (imageFile, context = {}) => {
     console.error("Error analitzant el bolet:", error);
     return {
       name: "Error en la detecció",
-      description: "Alguna cosa ha anat malament. Prova amb una altra foto més clara.",
+      description: `Alguna cosa ha anat malament (${error.message}). Torna-ho a provar en uns segons.`,
       edible: false,
       toxicity: "Desconegut",
       tips: "Assegura't que la foto sigui nítida i ben il·luminada.",

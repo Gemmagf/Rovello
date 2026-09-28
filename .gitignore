@@ -33,3 +33,10 @@ ml/priors/*.npz
 build/
 dist/
 *.egg-info/
+
+# Claude Code (worktrees, launch.json)
+.claude/
+
+# Env local
+.env.local
+.env*.local

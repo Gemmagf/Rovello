@@ -57,6 +57,40 @@ PRIOR_PATH = Path(os.environ.get("ROVELLO_PRIOR_PATH", DEFAULT_PRIOR))
 DEFAULT_ALPHA = float(os.environ.get("ROVELLO_DEFAULT_ALPHA", "1.0"))
 DEFAULT_BETA = float(os.environ.get("ROVELLO_DEFAULT_BETA", "0.5"))
 
+# URLs de descàrrega (GitHub Release públic). Es poden sobreescriure via env vars.
+# Si el build de Render no executa download_model.py, el servidor baixa els
+# fitxers ell mateix a la primera càrrega del model.
+_RELEASE = "https://github.com/Gemmagf/Rovello/releases/download/v1.0-model"
+MODEL_URL = os.environ.get("ROVELLO_MODEL_URL") or f"{_RELEASE}/best.pt"
+LABEL_MAP_URL = os.environ.get("ROVELLO_LABEL_MAP_URL") or f"{_RELEASE}/label_map.json"
+CONFIG_URL = os.environ.get("ROVELLO_CONFIG_URL") or f"{_RELEASE}/config.json"
+PRIOR_URL = os.environ.get("ROVELLO_PRIOR_URL") or f"{_RELEASE}/geo_temporal_prior.pkl"
+
+
+def _download(url: str, dest: Path) -> None:
+    """Descarrega url → dest de forma atòmica (fitxer .part + rename)."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dest.with_suffix(dest.suffix + ".part")
+    log.info(f"Descarregant {url} → {dest}")
+    with http_req.get(url, stream=True, timeout=180) as r:
+        r.raise_for_status()
+        with open(tmp, "wb") as f:
+            for chunk in r.iter_content(chunk_size=1 << 20):
+                f.write(chunk)
+    tmp.replace(dest)
+    log.info(f"OK {dest.name} ({dest.stat().st_size / 1e6:.1f} MB)")
+
+
+def _ensure_model_files() -> None:
+    """Baixa best.pt + label_map.json + config.json si no existeixen."""
+    for url, dest in (
+        (MODEL_URL, MODEL_PATH),
+        (LABEL_MAP_URL, MODEL_PATH.parent / "label_map.json"),
+        (CONFIG_URL, MODEL_PATH.parent / "config.json"),
+    ):
+        if not dest.exists():
+            _download(url, dest)
+
 # ----------------------------------------------------------------------------
 # Càrrega del model (lazy: detecta backend disponible)
 # ----------------------------------------------------------------------------
@@ -68,19 +102,27 @@ class TorchInference:
         from ml.scripts.train_helpers import build_model_for_inference  # type: ignore
 
         self.torch = torch
-        self.device = (
+        forced = os.environ.get("ROVELLO_DEVICE")  # p. ex. "cpu" per forçar
+        self.device = torch.device(forced) if forced else (
             torch.device("mps") if torch.backends.mps.is_available()
             else torch.device("cuda") if torch.cuda.is_available()
             else torch.device("cpu")
         )
         log.info(f"PyTorch device: {self.device}")
+        # Free tier (512 MB): limita threads i carrega el checkpoint amb mmap
+        # per no duplicar els pesos en memòria durant la càrrega.
+        torch.set_num_threads(max(1, min(2, os.cpu_count() or 1)))
 
-        ckpt = torch.load(ckpt_path, map_location=self.device)
+        ckpt = torch.load(ckpt_path, map_location="cpu", mmap=True)
         backbone = ckpt["backbone"]
         num_classes = ckpt["num_classes"]
         img_size = ckpt.get("img_size", 224)
+        log.info(f"Checkpoint: backbone={backbone} classes={num_classes} img={img_size}")
         self.model = build_model_for_inference(backbone, num_classes)
         self.model.load_state_dict(ckpt["model"])
+        del ckpt
+        import gc
+        gc.collect()
         self.model.eval().to(self.device)
         self.img_size = img_size
 
@@ -132,11 +174,17 @@ class TFInference:
 
 
 def load_inference():
-    """Tria backend disponible. Prefereix Torch si MODEL_PATH existeix."""
-    if MODEL_BACKEND == "torch" and MODEL_PATH.exists():
-        log.info(f"Carregant Torch model: {MODEL_PATH}")
-        return TorchInference(MODEL_PATH)
-    if DEFAULT_TF_MODEL.exists():
+    """Tria backend disponible. Prefereix Torch (baixa el model si cal)."""
+    if MODEL_BACKEND == "torch":
+        try:
+            _ensure_model_files()
+        except Exception:
+            log.exception("No s'ha pogut descarregar el model torch")
+        if MODEL_PATH.exists():
+            log.info(f"Carregant Torch model: {MODEL_PATH}")
+            return TorchInference(MODEL_PATH)
+    import importlib.util
+    if DEFAULT_TF_MODEL.exists() and importlib.util.find_spec("tensorflow") is not None:
         log.info(f"Carregant TF model (fallback): {DEFAULT_TF_MODEL}")
         return TFInference(DEFAULT_TF_MODEL, DEFAULT_LE)
     raise RuntimeError(
@@ -148,8 +196,12 @@ def load_inference():
 def load_prior():
     path = PRIOR_PATH if PRIOR_PATH.exists() else (_PRIOR_FALLBACK if _PRIOR_FALLBACK.exists() else None)
     if path is None:
-        log.warning("Prior geo-temporal no trobat — fusió desactivada.")
-        return None
+        try:
+            _download(PRIOR_URL, PRIOR_PATH)
+            path = PRIOR_PATH
+        except Exception:
+            log.exception("Prior geo-temporal no disponible — fusió desactivada.")
+            return None
     sys.path.insert(0, str(PROJECT_ROOT))
     sys.path.insert(0, str(BACKEND_DIR))
     try:
@@ -181,11 +233,25 @@ def _get_infer():
         return INFER
     with _infer_lock:
         if INFER is None:
-            log.info("Carregant model (primer /predict)...")
+            log.info("Carregant model...")
             INFER = load_inference()
             if PRIOR is not None and INFER.idx_to_class != PRIOR.species_list:
                 log.warning("Ordre de classes del model i prior no coincideix.")
+            log.info(f"Model llest: {len(INFER.idx_to_class)} classes")
         return INFER
+
+
+def _warmup():
+    """Escalfa el model en segon pla just després d'arrencar, sense bloquejar
+    el health check de Render. Si falla, es reintenta al primer /predict."""
+    try:
+        _get_infer()
+    except Exception:
+        log.exception("Warmup del model ha fallat")
+
+
+if os.environ.get("ROVELLO_WARMUP", "1") != "0":
+    _threading.Thread(target=_warmup, name="model-warmup", daemon=True).start()
 
 
 # ----------------------------------------------------------------------------
@@ -244,6 +310,11 @@ def predict():
 
     try:
         infer = _get_infer()
+    except Exception as e:
+        log.exception("Model no disponible")
+        return jsonify({"error": "Model no disponible", "detail": str(e)}), 503
+
+    try:
         image_probs = infer.predict_probs(img)
     except Exception as e:
         log.exception("Error d'inferència")
