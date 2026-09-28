@@ -3,11 +3,14 @@ services:
     name: rovello-backend
     env: python
     plan: free
-    buildCommand: pip install -r backend/requirements.txt && python backend/download_model.py
-    startCommand: gunicorn -w 1 -b 0.0.0.0:$PORT backend.server_v2:APP
+    # NOTA: si el servei es va crear manualment al dashboard, els valors del
+    # dashboard tenen prioritat sobre aquest fitxer. El servidor es baixa el
+    # model (best.onnx) del GitHub Release ell mateix si no el troba.
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && gunicorn -b 0.0.0.0:$PORT server:app
     envVars:
       - key: ROVELLO_MODEL_BACKEND
-        value: torch
+        value: onnx
       - key: ROVELLO_MODEL_URL
         sync: false
       - key: ROVELLO_PRIOR_URL

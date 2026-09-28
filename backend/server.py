@@ -48,15 +48,20 @@ PROJECT_ROOT = BACKEND_DIR.parent
 DEFAULT_TORCH_MODEL = PROJECT_ROOT / "ml" / "models" / "best" / "best.pt"
 DEFAULT_TF_MODEL = BACKEND_DIR / "models" / "mushroom_model.h5"
 DEFAULT_LE = BACKEND_DIR / "models" / "label_encoder.pkl"
+DEFAULT_ONNX_MODEL = PROJECT_ROOT / "ml" / "models" / "best" / "best.onnx"
 DEFAULT_PRIOR = PROJECT_ROOT / "ml" / "priors" / "geo_temporal_prior.pkl"
 _PRIOR_FALLBACK = BACKEND_DIR / "models" / "geo_temporal_prior.pkl"
 
-# Limita threads BLAS/OpenMP ABANS d'importar torch (memòria i CPU al free tier)
+# Limita threads BLAS/OpenMP ABANS d'importar torch/onnxruntime (free tier)
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("MKL_NUM_THREADS", "1")
 
-MODEL_BACKEND = os.environ.get("ROVELLO_MODEL_BACKEND", "torch").lower()
+# Backend d'inferència: "onnx" (defecte; ~40 MB de runtime, cap a Render free),
+# "torch" (necessita torch+torchvision) o "tf" (model antic). Si el preferit
+# no està disponible es prova el següent.
+MODEL_BACKEND = os.environ.get("ROVELLO_MODEL_BACKEND", "onnx").lower()
 MODEL_PATH = Path(os.environ.get("ROVELLO_MODEL_PATH", DEFAULT_TORCH_MODEL))
+ONNX_PATH = Path(os.environ.get("ROVELLO_ONNX_PATH", DEFAULT_ONNX_MODEL))
 PRIOR_PATH = Path(os.environ.get("ROVELLO_PRIOR_PATH", DEFAULT_PRIOR))
 DEFAULT_ALPHA = float(os.environ.get("ROVELLO_DEFAULT_ALPHA", "1.0"))
 DEFAULT_BETA = float(os.environ.get("ROVELLO_DEFAULT_BETA", "0.5"))
@@ -66,9 +71,13 @@ DEFAULT_BETA = float(os.environ.get("ROVELLO_DEFAULT_BETA", "0.5"))
 # fitxers ell mateix a la primera càrrega del model.
 _RELEASE = "https://github.com/Gemmagf/Rovello/releases/download/v1.0-model"
 MODEL_URL = os.environ.get("ROVELLO_MODEL_URL") or f"{_RELEASE}/best.pt"
+ONNX_URL = os.environ.get("ROVELLO_ONNX_URL") or f"{_RELEASE}/best.onnx"
 LABEL_MAP_URL = os.environ.get("ROVELLO_LABEL_MAP_URL") or f"{_RELEASE}/label_map.json"
 CONFIG_URL = os.environ.get("ROVELLO_CONFIG_URL") or f"{_RELEASE}/config.json"
 PRIOR_URL = os.environ.get("ROVELLO_PRIOR_URL") or f"{_RELEASE}/geo_temporal_prior.pkl"
+
+# Estat del warmup/càrrega, visible a /health per diagnosticar el desplegament
+_WARMUP = {"state": "idle", "phase": None, "error": None, "seconds": None}
 
 
 def _download(url: str, dest: Path) -> None:
@@ -76,30 +85,109 @@ def _download(url: str, dest: Path) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(dest.suffix + ".part")
     log.info(f"Descarregant {url} → {dest}")
+    done = 0
     with http_req.get(url, stream=True, timeout=180) as r:
         r.raise_for_status()
         with open(tmp, "wb") as f:
             for chunk in r.iter_content(chunk_size=1 << 20):
                 f.write(chunk)
+                done += len(chunk)
+                _WARMUP["phase"] = f"downloading {dest.name} ({done / 1e6:.0f} MB)"
     tmp.replace(dest)
     log.info(f"OK {dest.name} ({dest.stat().st_size / 1e6:.1f} MB)")
 
 
+def _ensure_files(pairs) -> None:
+    """Baixa cada (url, dest) que no existeixi encara."""
+    for url, dest in pairs:
+        if not dest.exists():
+            _download(url, dest)
+
+
 def _ensure_model_files() -> None:
-    """Baixa best.pt + label_map.json + config.json si no existeixen."""
-    for url, dest in (
+    """Fitxers del backend torch: best.pt + label_map.json + config.json."""
+    _ensure_files((
         (MODEL_URL, MODEL_PATH),
         (LABEL_MAP_URL, MODEL_PATH.parent / "label_map.json"),
         (CONFIG_URL, MODEL_PATH.parent / "config.json"),
-    ):
-        if not dest.exists():
-            _download(url, dest)
+    ))
+
+
+def _load_label_map(dir_: Path) -> list:
+    """label_map.json (nom → índex) → llista índex → nom."""
+    lm_path = dir_ / "label_map.json"
+    if not lm_path.exists():
+        raise FileNotFoundError(f"Falta label_map.json a {lm_path}")
+    with open(lm_path) as f:
+        label_map = json.load(f)
+    idx_to_class = [None] * len(label_map)
+    for sp, i in label_map.items():
+        idx_to_class[i] = sp
+    return idx_to_class
+
+
+# Preprocessat sense torchvision. Replica exactament:
+#   Resize(int(s*1.14)) (costat curt, bilineal PIL) → CenterCrop(s) → ToTensor → Normalize
+_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+
+
+def _preprocess_np(pil_img: Image.Image, s: int) -> np.ndarray:
+    short = int(s * 1.14)
+    w, h = pil_img.size
+    if w <= h:
+        nw, nh = short, int(short * h / w)
+    else:
+        nh, nw = short, int(short * w / h)
+    img = pil_img.resize((nw, nh), Image.BILINEAR)
+    left = int(round((nw - s) / 2.0))
+    top = int(round((nh - s) / 2.0))
+    img = img.crop((left, top, left + s, top + s))
+    x = np.asarray(img, dtype=np.float32) / 255.0          # HWC
+    x = (x - _MEAN) / _STD
+    return np.ascontiguousarray(x.transpose(2, 0, 1)[None])  # 1CHW
+
+
+class OnnxInference:
+    """Inferència amb onnxruntime (CPU). Molt menys memòria que torch."""
+    name = "onnx"
+
+    def __init__(self, model_path: Path):
+        _WARMUP["phase"] = "import onnxruntime"
+        import onnxruntime as ort
+        so = ort.SessionOptions()
+        so.intra_op_num_threads = max(1, int(os.environ.get("OMP_NUM_THREADS", "1")))
+        so.inter_op_num_threads = 1
+        so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        so.enable_cpu_mem_arena = False   # sense arena: memòria residual mínima
+        so.enable_mem_pattern = False
+        _WARMUP["phase"] = f"loading {model_path.name}"
+        self.sess = ort.InferenceSession(str(model_path), so, providers=["CPUExecutionProvider"])
+        self.input_name = self.sess.get_inputs()[0].name
+        meta = self.sess.get_modelmeta().custom_metadata_map or {}
+        self.img_size = int(meta.get("img_size", 224))
+        self.idx_to_class = _load_label_map(model_path.parent)
+        n_out = self.sess.get_outputs()[0].shape[-1]
+        if isinstance(n_out, int) and n_out != len(self.idx_to_class):
+            raise RuntimeError(f"ONNX té {n_out} sortides però label_map té {len(self.idx_to_class)}")
+        log.info(f"ONNX carregat: {model_path.name} backbone={meta.get('backbone')} "
+                 f"classes={len(self.idx_to_class)} img={self.img_size}")
+
+    def predict_probs(self, pil_img: Image.Image) -> np.ndarray:
+        x = _preprocess_np(pil_img, self.img_size)
+        logits = self.sess.run(None, {self.input_name: x})[0][0].astype(np.float64)
+        logits -= logits.max()
+        p = np.exp(logits)
+        return (p / p.sum()).astype(np.float32)
 
 # ----------------------------------------------------------------------------
 # Càrrega del model (lazy: detecta backend disponible)
 # ----------------------------------------------------------------------------
 class TorchInference:
+    name = "torch"
+
     def __init__(self, ckpt_path: Path):
+        _WARMUP["phase"] = "import torch"
         import torch
         from torchvision import transforms
         sys.path.insert(0, str(PROJECT_ROOT))
@@ -122,6 +210,7 @@ class TorchInference:
         num_classes = ckpt["num_classes"]
         img_size = ckpt.get("img_size", 224)
         log.info(f"Checkpoint: backbone={backbone} classes={num_classes} img={img_size}")
+        _WARMUP["phase"] = f"loading {ckpt_path.name} ({backbone})"
         # Construeix el model al device "meta" (no reserva memòria per a pesos
         # aleatoris) i assigna directament els tensors mmap del checkpoint:
         # el pic de memòria baixa de ~2x a ~1x la mida del model. Un forward
@@ -145,16 +234,7 @@ class TorchInference:
         self.model.eval().to(self.device)
         self.img_size = img_size
 
-        # Carrega label_map per mapejar índex -> nom espècie
-        lm_path = ckpt_path.parent / "label_map.json"
-        if not lm_path.exists():
-            raise FileNotFoundError(f"Falta label_map.json a {lm_path}")
-        with open(lm_path) as f:
-            label_map = json.load(f)
-        # invertit: index -> nom (label_map és nom -> index)
-        self.idx_to_class = [None] * len(label_map)
-        for sp, i in label_map.items():
-            self.idx_to_class[i] = sp
+        self.idx_to_class = _load_label_map(ckpt_path.parent)
 
         self.transform = transforms.Compose([
             transforms.Resize(int(img_size * 1.14)),
@@ -173,6 +253,8 @@ class TorchInference:
 
 class TFInference:
     """Fallback: utilitza el model EfficientNet .h5 antic."""
+    name = "tf"
+
     def __init__(self, model_path: Path, le_path: Path):
         import tensorflow as tf  # type: ignore
         import pickle
@@ -192,24 +274,55 @@ class TFInference:
         return preds[0]
 
 
+def _try_onnx():
+    _ensure_files((
+        (ONNX_URL, ONNX_PATH),
+        (LABEL_MAP_URL, ONNX_PATH.parent / "label_map.json"),
+    ))
+    log.info(f"Carregant ONNX: {ONNX_PATH}")
+    return OnnxInference(ONNX_PATH)
+
+
+def _try_torch():
+    _ensure_model_files()
+    log.info(f"Carregant Torch model: {MODEL_PATH}")
+    return TorchInference(MODEL_PATH)
+
+
+def _try_tf():
+    if not DEFAULT_TF_MODEL.exists():
+        raise FileNotFoundError(f"No existeix {DEFAULT_TF_MODEL}")
+    log.info(f"Carregant TF model: {DEFAULT_TF_MODEL}")
+    return TFInference(DEFAULT_TF_MODEL, DEFAULT_LE)
+
+
 def load_inference():
-    """Tria backend disponible. Prefereix Torch (baixa el model si cal)."""
-    if MODEL_BACKEND == "torch":
-        try:
-            _ensure_model_files()
-        except Exception:
-            log.exception("No s'ha pogut descarregar el model torch")
-        if MODEL_PATH.exists():
-            log.info(f"Carregant Torch model: {MODEL_PATH}")
-            return TorchInference(MODEL_PATH)
+    """Carrega el primer backend disponible, en l'ordre de preferència.
+
+    L'ordre comença pel ROVELLO_MODEL_BACKEND demanat i continua amb la resta;
+    un backend només s'intenta si el seu paquet està instal·lat.
+    """
     import importlib.util
-    if DEFAULT_TF_MODEL.exists() and importlib.util.find_spec("tensorflow") is not None:
-        log.info(f"Carregant TF model (fallback): {DEFAULT_TF_MODEL}")
-        return TFInference(DEFAULT_TF_MODEL, DEFAULT_LE)
-    raise RuntimeError(
-        f"No hi ha cap model disponible. Esperava {MODEL_PATH} (torch) o "
-        f"{DEFAULT_TF_MODEL} (tf)."
-    )
+    candidates = {
+        "onnx": ("onnxruntime", _try_onnx),
+        "torch": ("torch", _try_torch),
+        "tf": ("tensorflow", _try_tf),
+    }
+    order = [MODEL_BACKEND] + [b for b in ("onnx", "torch", "tf") if b != MODEL_BACKEND]
+    errors = []
+    for name in order:
+        if name not in candidates:
+            continue
+        pkg, fn = candidates[name]
+        if importlib.util.find_spec(pkg) is None:
+            errors.append(f"{name}: paquet '{pkg}' no instal·lat")
+            continue
+        try:
+            return fn()
+        except Exception as e:
+            log.exception(f"Backend {name} no disponible")
+            errors.append(f"{name}: {type(e).__name__}: {e}")
+    raise RuntimeError("Cap backend d'inferència disponible → " + " | ".join(errors))
 
 
 def load_prior():
@@ -260,10 +373,6 @@ def _get_infer():
         return INFER
 
 
-# Estat del warmup, visible a /health per diagnosticar el desplegament
-_WARMUP = {"state": "idle", "error": None, "seconds": None}
-
-
 def _warmup():
     """Escalfa el model en segon pla just després d'arrencar, sense bloquejar
     el health check de Render. Si falla, es reintenta al primer /predict."""
@@ -278,6 +387,7 @@ def _warmup():
         _WARMUP["state"] = "failed"
         _WARMUP["error"] = f"{type(e).__name__}: {e}"[:300]
     finally:
+        _WARMUP["phase"] = None
         _WARMUP["seconds"] = round(time.time() - t0, 1)
 
 
@@ -293,12 +403,13 @@ def health():
     infer = INFER  # pot ser None si el model no s'ha carregat encara
     return jsonify({
         "status": "ok",
-        "backend": "torch" if isinstance(infer, TorchInference) else ("tf" if infer else "pending"),
+        "backend": getattr(infer, "name", None) or "pending",
         "model_loaded": infer is not None,
         "classes": len(infer.idx_to_class) if infer else 0,
         "prior_loaded": PRIOR is not None,
         "warmup": _WARMUP,
         "commit": os.environ.get("RENDER_GIT_COMMIT", "")[:7] or None,
+        "pid": os.getpid(),  # si canvia entre crides, el worker s'està reiniciant
     })
 
 
