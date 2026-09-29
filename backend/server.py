@@ -1144,6 +1144,31 @@ def _get_edibility(species_name: str) -> str:
     return "unknown"
 
 
+# Consells traduïts (EN/DE) — mòdul opcional generat a part; fallback al català
+try:
+    from species_tips_i18n import TIPS_I18N, GENUS_TIPS_I18N  # type: ignore
+except Exception:  # pragma: no cover
+    TIPS_I18N, GENUS_TIPS_I18N = {}, {}
+
+
+def _norm_lang(lang) -> str:
+    lang = (lang or "ca").lower()[:2]
+    return lang if lang in ("ca", "en", "de") else "ca"
+
+
+def _get_tips_lang(species_name: str, lang: str) -> list:
+    """Consells en l'idioma demanat; si no hi ha traducció, en català."""
+    if lang != "ca":
+        tips = TIPS_I18N.get(lang, {}).get(species_name)
+        if tips:
+            return tips
+        genus = species_name.split()[0]
+        gtips = GENUS_TIPS_I18N.get(lang, {}).get(genus)
+        if gtips and species_name not in _TIPS:
+            return gtips
+    return _get_tips(species_name)
+
+
 def _get_tips(species_name: str) -> list:
     """Retorna els tips d'identificació per una espècie (específics o per gènere)."""
     if species_name in _TIPS:
@@ -1154,13 +1179,16 @@ def _get_tips(species_name: str) -> list:
     return []
 
 
-def _fetch_one(species_name: str) -> dict:
-    if species_name in _inat_cache:
-        return _inat_cache[species_name]
+def _fetch_one(species_name: str, lang: str = "ca") -> dict:
+    lang = _norm_lang(lang)
+    cache_key = (species_name, lang)
+    if cache_key in _inat_cache:
+        return _inat_cache[cache_key]
     try:
         r = http_req.get(
             "https://api.inaturalist.org/v1/taxa/autocomplete",
-            params={"q": species_name, "per_page": 1, "rank": "species"},
+            # locale → nom comú en l'idioma de la UI (si iNaturalist el té)
+            params={"q": species_name, "per_page": 1, "rank": "species", "locale": lang},
             timeout=6,
         )
         results = r.json().get("results", [])
@@ -1178,18 +1206,20 @@ def _fetch_one(species_name: str) -> dict:
         info = {}
 
     info["edibility"] = _get_edibility(species_name)
-    info["tips"] = _get_tips(species_name)
-    _inat_cache[species_name] = info
+    info["tips"] = _get_tips_lang(species_name, lang)
+    _inat_cache[cache_key] = info
     return info
 
 
 @APP.route("/species-info", methods=["POST"])
 def species_info():
     """Retorna foto i nom comú per una llista d'espècies (via iNaturalist)."""
-    species_list = (request.json or {}).get("species", [])[:25]
+    body = request.json or {}
+    species_list = body.get("species", [])[:25]
+    lang = _norm_lang(body.get("lang") or request.args.get("lang"))
     results = {}
     with ThreadPoolExecutor(max_workers=5) as ex:
-        futures = {ex.submit(_fetch_one, sp): sp for sp in species_list}
+        futures = {ex.submit(_fetch_one, sp, lang): sp for sp in species_list}
         for fut in as_completed(futures):
             sp = futures[fut]
             results[sp] = fut.result()

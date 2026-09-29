@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Layers, Database, Settings, Map, AlertTriangle, Sprout, Target, RefreshCw, Brain } from 'lucide-react';
 import { useT } from '../context/LanguageContext';
 
 // ── Accordió reutilitzable ────────────────────────────────────────────────────
-const Section = ({ title, emoji, children, defaultOpen = false }) => {
+const Section = ({ title, icon, children, defaultOpen = false }) => {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="bg-white rounded-card border border-sage-200 shadow-sm overflow-hidden">
@@ -14,7 +14,7 @@ const Section = ({ title, emoji, children, defaultOpen = false }) => {
                    hover:bg-cream-100 transition-colors"
       >
         <span className="flex items-center gap-2 font-semibold text-ink text-sm">
-          <span>{emoji}</span>
+          <span className="text-forest-700 flex">{icon}</span>
           <span>{title}</span>
         </span>
         {open ? <ChevronUp size={15} className="text-muted" /> : <ChevronDown size={15} className="text-muted" />}
@@ -43,10 +43,10 @@ const DataScienceSection = () => {
   const { t } = useT();
 
   const metrics = [
-    { value: '1.035',  label: t('dsSpecies'),    icon: '🍄' },
-    { value: '73.4%',  label: t('dsAccLabel'),   icon: '🎯' },
-    { value: '50',     label: t('dsEpochsLabel'),icon: '🔄' },
-    { value: '28M',    label: t('dsParamsLabel'),icon: '🧠' },
+    { value: '1.035',  label: t('dsSpecies'),    Icon: Sprout },
+    { value: '73.4%',  label: t('dsAccLabel'),   Icon: Target },
+    { value: '50',     label: t('dsEpochsLabel'),Icon: RefreshCw },
+    { value: '28M',    label: t('dsParamsLabel'),Icon: Brain },
   ];
 
   return (
@@ -66,7 +66,7 @@ const DataScienceSection = () => {
 
       {/* Mètriques clau */}
       <div className="grid grid-cols-2 gap-2">
-        {metrics.map(({ value, label, icon }, i) => (
+        {metrics.map(({ value, label, Icon }, i) => (
           <motion.div
             key={label}
             initial={{ opacity: 0, scale: 0.95 }}
@@ -74,7 +74,7 @@ const DataScienceSection = () => {
             transition={{ delay: i * 0.07 }}
             className="bg-forest-900 rounded-card p-3 text-cream-100 shadow-sm"
           >
-            <div className="text-xl mb-0.5">{icon}</div>
+            <div className="mb-1.5 text-cream-100/90"><Icon size={20} strokeWidth={1.6} /></div>
             <div className="text-2xl font-black leading-none">{value}</div>
             <div className="text-xs opacity-80 mt-0.5 font-medium">{label}</div>
           </motion.div>
@@ -82,7 +82,7 @@ const DataScienceSection = () => {
       </div>
 
       {/* Arquitectura */}
-      <Section emoji="🏗️" title={t('dsArchTitle')} defaultOpen={true}>
+      <Section icon={<Layers size={15} />} title={t('dsArchTitle')} defaultOpen={true}>
         <p className="text-xs text-muted leading-relaxed mb-3">{t('dsArchDesc')}</p>
         {/* Flow diagram */}
         <div className="flex items-center gap-1 overflow-x-auto pb-1">
@@ -101,7 +101,7 @@ const DataScienceSection = () => {
       </Section>
 
       {/* Dades */}
-      <Section emoji="📊" title={t('dsDataTitle')}>
+      <Section icon={<Database size={15} />} title={t('dsDataTitle')}>
         <dl className="space-y-2">
           {t('dsDataItems').map(([key, val]) => (
             <div key={key} className="flex items-start gap-2">
@@ -113,7 +113,7 @@ const DataScienceSection = () => {
       </Section>
 
       {/* Entrenament */}
-      <Section emoji="⚙️" title={t('dsTrainTitle')}>
+      <Section icon={<Settings size={15} />} title={t('dsTrainTitle')}>
         <dl className="space-y-2 mb-4">
           {t('dsTrainItems').map(([key, val]) => (
             <div key={key} className="flex items-start gap-2">
@@ -154,7 +154,7 @@ const DataScienceSection = () => {
       </Section>
 
       {/* Fusió bayesiana */}
-      <Section emoji="🗺️" title={t('dsFusionTitle')}>
+      <Section icon={<Map size={15} />} title={t('dsFusionTitle')}>
         <p className="text-xs text-muted leading-relaxed mb-3">{t('dsFusionDesc')}</p>
 
         {/* Fórmula */}
@@ -175,11 +175,11 @@ const DataScienceSection = () => {
       </Section>
 
       {/* Limitacions */}
-      <Section emoji="⚠️" title={t('dsLimTitle')}>
+      <Section icon={<AlertTriangle size={15} />} title={t('dsLimTitle')}>
         <ul className="space-y-2.5">
-          {t('dsLimitations').map(([icon, text], i) => (
+          {t('dsLimitations').map(([, text], i) => (
             <li key={i} className="flex items-start gap-2.5">
-              <span className="text-base shrink-0 mt-0.5">{icon}</span>
+              <AlertTriangle size={14} className="text-amber-700 shrink-0 mt-0.5" />
               <p className="text-xs text-muted leading-relaxed">{text}</p>
             </li>
           ))}

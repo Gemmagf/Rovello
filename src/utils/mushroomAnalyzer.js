@@ -111,34 +111,55 @@ export const analyzeMushroom = async (imageFile, context = {}) => {
       throw new Error("No s'han rebut prediccions del model");
     }
 
-    const isEdible = EDIBLE_SPECIES.includes(top.class_name);
+    // Fitxa de les 3 primeres espècies (nom comú, foto iNaturalist, comestibilitat
+    // curada i consells) — opcional: si falla, la identificació es mostra igualment.
+    const infos = await fetchSpeciesInfo(predictions.slice(0, 3).map((p) => p.class_name), context.lang);
+    const info = infos[top.class_name] || {};
+    const edibility = info.edibility
+      || (EDIBLE_SPECIES.includes(top.class_name) ? "edible" : "unknown");
+    const second = predictions[1]?.prob ?? 0;
+    const uncertain = top.prob < 0.5 || top.prob - second < 0.15;
 
     return {
-      name: top.class_name,
-      description: `Confiança ${(top.prob * 100).toFixed(1)}%`,
-      edible: isEdible,
-      toxicity: isEdible ? "Cap risc" : "Alt risc",
-      tips: isEdible
-        ? "Aquest bolet és comestible i apreciat. Tot i així, assegura't que no hi hagi confusions amb espècies similars."
-        : "Evita consumir-lo. Podria confondre's amb bolets tòxics similars.",
-      // Camps addicionals per UI avançada
+      ok: true,
+      name: top.class_name,                 // nom científic
+      commonName: info.common_name || "",
+      photoUrl: info.photo_url || "",
+      confidence: top.prob,
+      imageProb: top.image_prob,
+      priorProb: top.prior_prob,
+      edibility,
+      edible: edibility === "edible",
+      tips: Array.isArray(info.tips) ? info.tips : [],
+      uncertain,
       alternatives: predictions.slice(1, 4).map((p) => ({
         name: p.class_name,
         prob: p.prob,
+        commonName: infos[p.class_name]?.common_name || "",
+        edibility: infos[p.class_name]?.edibility || "unknown",
       })),
       contextUsed: data.context_used === true,
-      imageProb: top.image_prob,
-      priorProb: top.prior_prob,
     };
   } catch (error) {
     console.error("Error analitzant el bolet:", error);
-    return {
-      name: "Error en la detecció",
-      description: `Alguna cosa ha anat malament (${error.message}). Torna-ho a provar en uns segons.`,
-      edible: false,
-      toxicity: "Desconegut",
-      tips: "Assegura't que la foto sigui nítida i ben il·luminada.",
+    return { ok: false, error: error.message || String(error) };
+  }
+};
+
+/** Demana al backend la fitxa (nom comú, foto, comestibilitat, consells) d'unes espècies. */
+const fetchSpeciesInfo = async (species, lang = "ca") => {
+  if (!species.length) return {};
+  try {
+    const opts = {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ species, lang }),
     };
+    if (typeof AbortSignal !== "undefined" && AbortSignal.timeout) opts.signal = AbortSignal.timeout(8000);
+    const r = await fetch(`${API_URL}/species-info`, opts);
+    return r.ok ? await r.json() : {};
+  } catch {
+    return {};
   }
 };
 

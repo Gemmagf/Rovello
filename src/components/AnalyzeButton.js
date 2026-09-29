@@ -1,14 +1,17 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { Search, Loader2 } from 'lucide-react';
+import { useT } from '../context/LanguageContext';
 
 const AnalyzeButton = ({ onAnalyze, isAnalyzing, disabled }) => {
+  const { t } = useT();
   const actualDisabled = disabled || isAnalyzing;
 
   return (
     <motion.button
       onClick={onAnalyze}
       disabled={actualDisabled}
-      className={`w-full px-8 py-4 rounded-btn font-semibold text-base flex items-center gap-3
+      className={`w-full min-h-[52px] px-6 py-3.5 rounded-btn font-semibold text-base flex items-center gap-2.5
         justify-center transition-colors duration-200 ${
         actualDisabled
           ? 'bg-sage-200 text-muted cursor-not-allowed'
@@ -17,23 +20,10 @@ const AnalyzeButton = ({ onAnalyze, isAnalyzing, disabled }) => {
       whileHover={!actualDisabled ? { scale: 1.01 } : {}}
       whileTap={!actualDisabled ? { scale: 0.98 } : {}}
     >
-      {isAnalyzing ? (
-        <>
-          <motion.span
-            style={{ fontSize: '1.25rem', display: 'inline-block' }}
-            animate={{ rotate: 360 }}
-            transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
-          >
-            🍄
-          </motion.span>
-          <span>Analitzant...</span>
-        </>
-      ) : (
-        <>
-          <span style={{ fontSize: '1.25rem' }}>🍄</span>
-          <span>Identificar bolet</span>
-        </>
-      )}
+      {isAnalyzing
+        ? <Loader2 className="w-5 h-5 animate-spin" strokeWidth={2} />
+        : <Search className="w-5 h-5" strokeWidth={2} />}
+      <span>{isAnalyzing ? t('analyzing') : t('analyzeBtn')}</span>
     </motion.button>
   );
 };

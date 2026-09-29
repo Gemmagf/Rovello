@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, Image } from 'lucide-react';
+import { Upload, Image as ImageIcon, Camera } from 'lucide-react';
+import { useT } from '../context/LanguageContext';
 
 const UploadArea = ({ onImageSelect }) => {
+  const { t } = useT();
   const [dragActive, setDragActive] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
 
@@ -12,20 +14,8 @@ const UploadArea = ({ onImageSelect }) => {
     setDragActive(e.type === 'dragenter' || e.type === 'dragover');
   };
 
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file?.type.startsWith('image/')) processFile(file);
-  };
-
-  const handleFileSelect = (e) => {
-    const file = e.target.files?.[0];
-    if (file?.type.startsWith('image/')) processFile(file);
-  };
-
   const processFile = (file) => {
+    if (!file || !file.type.startsWith('image/')) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
       setSelectedImage(ev.target.result);
@@ -34,12 +24,22 @@ const UploadArea = ({ onImageSelect }) => {
     reader.readAsDataURL(file);
   };
 
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    processFile(e.dataTransfer.files?.[0]);
+  };
+
+  const handleFileSelect = (e) => {
+    processFile(e.target.files?.[0]);
+    e.target.value = ''; // permet tornar a triar el mateix fitxer
+  };
+
   return (
     <motion.div
-      className={`relative bg-white border-2 rounded-card p-6 text-center transition-all duration-300 ${
-        dragActive
-          ? 'border-forest-700 bg-cream-50 shadow-md'
-          : 'border-sage-200 hover:border-forest-700/40'
+      className={`relative bg-white border-2 rounded-card p-5 sm:p-6 text-center transition-colors duration-300 ${
+        dragActive ? 'border-forest-700 bg-cream-50' : 'border-sage-200'
       }`}
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
@@ -48,44 +48,49 @@ const UploadArea = ({ onImageSelect }) => {
       onDragOver={handleDrag}
       onDrop={handleDrop}
     >
+      {/* Inputs: galeria/arxius i càmera (mòbil) */}
+      <input id="file-upload" type="file" accept="image/*"
+        onChange={handleFileSelect} className="hidden" />
+      <input id="camera-upload" type="file" accept="image/*" capture="environment"
+        onChange={handleFileSelect} className="hidden" />
+
       {selectedImage ? (
-        <motion.div className="flex flex-col items-center gap-4"
-          initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
+        <motion.div className="flex flex-col items-center gap-3"
+          initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}>
           <img
             src={selectedImage}
-            alt="Bolet seleccionat"
-            className="w-64 h-64 object-cover rounded-card shadow-sm border border-sage-200"
+            alt=""
+            className="w-full max-w-[280px] aspect-square object-cover rounded-card border border-sage-200"
           />
-          <p className="text-muted text-sm font-medium">
-            Foto preparada! Prem el botó per identificar.
-          </p>
+          <p className="text-muted text-sm">{t('photoReady')}</p>
           <label htmlFor="file-upload"
-            className="text-xs text-forest-700 underline cursor-pointer hover:text-forest-900">
-            Canviar foto
+            className="text-sm font-medium text-forest-700 underline underline-offset-2 cursor-pointer hover:text-forest-900">
+            {t('changePhoto')}
           </label>
-          <input id="file-upload" type="file" accept="image/*"
-            onChange={handleFileSelect} className="hidden" />
         </motion.div>
       ) : (
         <>
-          <div className="mx-auto w-16 h-16 bg-cream-100 border border-sage-200 rounded-btn
-                          flex items-center justify-center mb-5">
-            <Upload className="w-7 h-7 text-forest-700" strokeWidth={1.5} />
+          <div className="mx-auto w-14 h-14 bg-cream-100 border border-sage-200 rounded-btn
+                          flex items-center justify-center mb-4">
+            <Upload className="w-6 h-6 text-forest-700" strokeWidth={1.5} />
           </div>
-          <h2 className="text-lg font-semibold text-ink mb-1">Puja el teu bolet</h2>
-          <p className="text-muted text-sm mb-6">
-            Arrossega la imatge aquí o fes clic per seleccionar-la
-          </p>
-          <label htmlFor="file-upload"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-forest-900 text-cream-100
-                       rounded-btn font-medium text-sm cursor-pointer
-                       hover:bg-forest-700 transition-colors">
-            <Image className="w-4 h-4" strokeWidth={1.5} />
-            Selecciona foto
-          </label>
-          <input id="file-upload" type="file" accept="image/*"
-            onChange={handleFileSelect} className="hidden" />
-          <p className="mt-4 text-xs text-sage-500 hidden sm:block">O arrossega aquí</p>
+          <h2 className="text-lg font-semibold text-ink mb-1">{t('uploadTitle')}</h2>
+          <p className="text-muted text-sm mb-5 max-w-xs mx-auto leading-relaxed">{t('uploadHint')}</p>
+          <div className="flex flex-col sm:flex-row gap-2.5 justify-center">
+            <label htmlFor="file-upload"
+              className="inline-flex items-center justify-center gap-2 min-h-[48px] px-6 py-3 bg-forest-900 text-cream-100
+                         rounded-btn font-medium text-sm cursor-pointer hover:bg-forest-700 transition-colors">
+              <ImageIcon className="w-4 h-4" strokeWidth={1.5} />
+              {t('choosePhoto')}
+            </label>
+            <label htmlFor="camera-upload"
+              className="sm:hidden inline-flex items-center justify-center gap-2 min-h-[48px] px-6 py-3 bg-cream-100 text-forest-900
+                         border border-sage-200 rounded-btn font-medium text-sm cursor-pointer hover:bg-sage-200/60 transition-colors">
+              <Camera className="w-4 h-4" strokeWidth={1.5} />
+              {t('takePhoto')}
+            </label>
+          </div>
+          <p className="mt-4 text-xs text-sage-500 hidden sm:block">{t('dragHere')}</p>
         </>
       )}
     </motion.div>

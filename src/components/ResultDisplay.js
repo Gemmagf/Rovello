@@ -1,92 +1,202 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import {
+  AlertTriangle, CheckCircle, HelpCircle, Skull, Leaf, Sprout, Ban,
+  Info, MapPin, ShieldAlert, Sparkles, AlertCircle,
+} from 'lucide-react';
+import { useT } from '../context/LanguageContext';
+import { parseTip } from '../utils/tips';
+
+// Comestibilitat: SEMPRE icona + text + color (mai només el color)
+const EDIBILITY = {
+  edible:   { Icon: CheckCircle,   cls: 'bg-green-50 text-green-800 border-green-200', dot: 'bg-green-600' },
+  toxic:    { Icon: Skull,         cls: 'bg-red-50 text-red-800 border-red-200',       dot: 'bg-alert' },
+  caution:  { Icon: AlertTriangle, cls: 'bg-amber-50 text-amber-800 border-amber-200', dot: 'bg-amber-500' },
+  inedible: { Icon: Ban,           cls: 'bg-cream-100 text-muted border-sage-200',     dot: 'bg-sage-500' },
+  parasite: { Icon: Sprout,        cls: 'bg-cream-100 text-muted border-sage-200',     dot: 'bg-sage-500' },
+  lichen:   { Icon: Leaf,          cls: 'bg-cream-100 text-muted border-sage-200',     dot: 'bg-sage-500' },
+  unknown:  { Icon: HelpCircle,    cls: 'bg-cream-100 text-muted border-sage-200',     dot: 'bg-sage-500' },
+};
+const edib = (key) => EDIBILITY[key] || EDIBILITY.unknown;
+const pct = (p) => `${Math.round((p || 0) * 100)} %`;
+
+// Animació d'escaneig: les làmines radials del logo s'encenen del centre cap enfora
+const ScanGills = () => {
+  const N = 16;
+  return (
+    <svg width="76" height="76" viewBox="0 0 100 100" className="mb-4" aria-hidden="true">
+      <circle cx="50" cy="50" r="46" fill="none" stroke="#C7D0C5" strokeWidth="1.5" />
+      {Array.from({ length: N }).map((_, i) => {
+        const a = (i / N) * Math.PI * 2;
+        return (
+          <motion.line key={i}
+            x1={50 + 15 * Math.cos(a)} y1={50 + 15 * Math.sin(a)}
+            x2={50 + 40 * Math.cos(a)} y2={50 + 40 * Math.sin(a)}
+            stroke="#2E4B3A" strokeWidth="3.5" strokeLinecap="round"
+            initial={{ opacity: 0.15 }}
+            animate={{ opacity: [0.15, 1, 0.15] }}
+            transition={{ duration: 1.6, repeat: Infinity, delay: (i / N) * 1.6, ease: 'easeInOut' }}
+          />
+        );
+      })}
+      <circle cx="50" cy="50" r="6.5" fill="#2E4B3A" />
+    </svg>
+  );
+};
 
 const ResultDisplay = ({ result, isLoading, statusText }) => {
+  const { t } = useT();
+
   if (isLoading) {
+    const waking = statusText && statusText.startsWith('Preparant identificador');
     return (
       <motion.div
         className="bg-white border border-sage-200 rounded-card p-6 text-center flex flex-col items-center"
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       >
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
-          className="mb-4"
-        >
-          <Loader2 className="w-10 h-10 text-forest-700" strokeWidth={1.5} />
-        </motion.div>
-        <p className="text-ink font-medium mb-1">{statusText || 'Analitzant el teu bolet...'}</p>
-        <p className="text-muted text-sm">
-          {statusText && statusText.startsWith('Preparant identificador')
-            ? "El servidor gratuït s'està despertant; pot trigar fins a un minut."
-            : 'Un moment, si us plau.'}
+        <ScanGills />
+        <p className="text-ink font-medium mb-1">
+          {waking ? t('preparingIdentifier') : t('analyzingTitle')}
         </p>
+        <p className="text-muted text-sm">{waking ? t('wakingServer') : t('oneMoment')}</p>
       </motion.div>
     );
   }
 
   if (!result) return null;
 
-  const isEdible = result.edible;
+  // ── Error ────────────────────────────────────────────────────────────────
+  if (result.ok === false) {
+    return (
+      <motion.div className="bg-white border border-sage-200 rounded-card p-6"
+        initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+        <div className="flex items-start gap-3">
+          <AlertCircle className="w-6 h-6 text-alert shrink-0 mt-0.5" strokeWidth={1.5} />
+          <div className="min-w-0">
+            <h3 className="text-lg font-semibold text-ink leading-tight">{t('errorTitle')}</h3>
+            <p className="text-sm text-muted mt-1 leading-relaxed">
+              {t('errorDesc').replace('{detail}', result.error || '?')}
+            </p>
+            <p className="text-sm text-muted mt-2">{t('errorTip')}</p>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
 
-  // Etiqueta de comestibilitat amb icona + color (accessible: mai sols pel color)
-  const edibilityLabel = isEdible ? 'Comestible' : 'Tòxic / No recomanat';
-  const edibilityIcon  = isEdible ? '✓' : '✕';
-  const edibilityBg    = isEdible
-    ? 'bg-green-50 text-green-800 border border-green-200'
-    : 'bg-red-50 text-red-800 border border-red-200';
+  // ── Resultat ─────────────────────────────────────────────────────────────
+  const e = edib(result.edibility);
+  const EdIcon = e.Icon;
 
   return (
     <motion.div
-      className="bg-white border border-sage-200 rounded-card p-6 overflow-hidden"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
+      className="bg-white border border-sage-200 rounded-card p-5 sm:p-6 overflow-hidden"
+      initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
       transition={{ duration: 0.3 }}
     >
-      {/* Capçalera */}
-      <div className="flex items-start gap-3 mb-4">
-        <div className="mt-0.5 shrink-0">
-          {isEdible
-            ? <CheckCircle className="w-6 h-6 text-green-600" strokeWidth={1.5} />
-            : <AlertCircle className="w-6 h-6 text-red-600"   strokeWidth={1.5} />
-          }
+      {/* Capçalera: foto de referència + noms + coincidència */}
+      <div className="flex items-start gap-3">
+        <div className="w-14 h-14 rounded-input overflow-hidden bg-cream-100 border border-sage-200 shrink-0
+                        flex items-center justify-center text-sage-500">
+          {result.photoUrl
+            ? <img src={result.photoUrl} alt="" className="w-full h-full object-cover"
+                onError={(ev) => { ev.currentTarget.style.display = 'none'; }} />
+            : <Sprout size={22} strokeWidth={1.5} />}
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="text-lg font-semibold text-ink leading-tight">{result.name}</h3>
-          {result.scientificName && (
-            <p className="text-sm text-muted italic mt-0.5">{result.scientificName}</p>
+          <h3 className="text-lg font-semibold text-ink leading-tight italic break-words">{result.name}</h3>
+          {result.commonName && (
+            <p className="text-sm text-muted mt-0.5 capitalize">{result.commonName}</p>
           )}
         </div>
-        {result.confidence != null && (
-          <span className="shrink-0 text-xs font-medium text-sage-500 bg-cream-100
-                           px-2.5 py-1 rounded-pill border border-sage-200">
-            {Math.round(result.confidence * 100)}%
+        <span className="shrink-0 text-xs font-semibold text-forest-700 bg-cream-100 border border-sage-200
+                         px-2.5 py-1 rounded-pill whitespace-nowrap tabular-nums">
+          {pct(result.confidence)} {t('matchLabel')}
+        </span>
+      </div>
+
+      {/* Comestibilitat */}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-pill text-xs font-semibold border ${e.cls}`}>
+          <EdIcon size={14} strokeWidth={2} />
+          <span>{t(`edib_${result.edibility}`) || t('edib_unknown')}</span>
+        </span>
+        {result.contextUsed && (
+          <span className="inline-flex items-center gap-1 text-xs text-forest-700">
+            <Sparkles size={12} /> {t('contextUsed')}
           </span>
         )}
       </div>
 
-      {/* Descripció */}
-      {result.description && (
-        <p className="text-muted text-sm mb-4 leading-relaxed">{result.description}</p>
-      )}
-
-      {/* Etiqueta comestibilitat */}
-      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-pill text-xs font-semibold mb-4 ${edibilityBg}`}>
-        <span>{edibilityIcon}</span>
-        <span>{edibilityLabel}</span>
-      </span>
-
-      {/* Consell */}
-      {result.tips && (
-        <div className="bg-cream-50 border border-sage-200 p-4 rounded-input">
-          <h4 className="text-xs font-semibold text-ink uppercase tracking-wide mb-2">
-            Consell de l'expert
-          </h4>
-          <p className="text-sm text-muted leading-relaxed">{result.tips}</p>
+      {/* Identificació incerta */}
+      {result.uncertain && (
+        <div className="mt-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-input p-3">
+          <AlertTriangle size={16} className="text-amber-700 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-amber-800">{t('uncertainTitle')}</p>
+            <p className="text-xs text-amber-800/80 leading-relaxed mt-0.5">{t('uncertainDesc')}</p>
+          </div>
         </div>
       )}
+
+      {/* Altres candidats */}
+      {result.alternatives?.length > 0 && (
+        <div className="mt-5">
+          <h4 className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">{t('alternativesTitle')}</h4>
+          <ul className="space-y-2.5">
+            {result.alternatives.map((a) => {
+              const ae = edib(a.edibility);
+              return (
+                <li key={a.name} className="text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className={`w-2 h-2 rounded-pill shrink-0 ${ae.dot}`} aria-hidden="true" />
+                      <span className="italic text-ink truncate">{a.name}</span>
+                      {a.commonName && <span className="text-muted truncate hidden sm:inline">· {a.commonName}</span>}
+                    </span>
+                    <span className="text-xs text-muted tabular-nums shrink-0">{pct(a.prob)}</span>
+                  </div>
+                  <div className="mt-1 h-1 rounded-pill bg-cream-100 overflow-hidden">
+                    <div className="h-full rounded-pill bg-forest-700/60" style={{ width: `${Math.max(2, a.prob * 100)}%` }} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {/* Consells de l'expert */}
+      {result.tips?.length > 0 && (
+        <div className="mt-5 bg-cream-50 border border-sage-200 p-4 rounded-input">
+          <h4 className="text-xs font-semibold text-ink uppercase tracking-wide mb-2">{t('expertTips')}</h4>
+          <ul className="space-y-1.5">
+            {result.tips.map((tip, i) => {
+              const { kind, text } = parseTip(tip);
+              const TipIcon = kind === 'warn' ? AlertTriangle : kind === 'plant' ? Sprout : kind === 'lichen' ? Leaf : Info;
+              const color = kind === 'warn' ? 'text-alert' : 'text-forest-700';
+              return (
+                <li key={i} className="flex items-start gap-2 text-sm text-muted leading-relaxed">
+                  <TipIcon size={14} className={`${color} shrink-0 mt-1`} />
+                  <span>{text}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {/* Context i seguretat */}
+      <div className="mt-4 space-y-1.5">
+        {!result.contextUsed && (
+          <p className="flex items-start gap-1.5 text-xs text-muted">
+            <MapPin size={13} className="shrink-0 mt-px" /> {t('noContextHint')}
+          </p>
+        )}
+        <p className="flex items-start gap-1.5 text-xs text-muted">
+          <ShieldAlert size={13} className="shrink-0 mt-px" /> {t('safetyLine')}
+        </p>
+      </div>
     </motion.div>
   );
 };

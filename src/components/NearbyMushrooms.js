@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Calendar, RefreshCw, Loader2, AlertTriangle, ChevronDown, ChevronUp, Leaf } from 'lucide-react';
+import { MapPin, Calendar, RefreshCw, Loader2, AlertTriangle, ChevronDown, ChevronUp, Leaf,
+         Snowflake, Sprout, Sun, CloudRain, Thermometer, Mountain, Search } from 'lucide-react';
 import { useT } from '../context/LanguageContext';
+import { parseTip } from '../utils/tips';
 import { MONTHS } from '../i18n/translations';
 
 const API_URL = process.env.REACT_APP_API_URL || 'https://rovello-backend.onrender.com';
 
+// Icona d'estació per mes (lucide; sense emojis)
 const SEASONS = {
-  1:'❄️',2:'❄️',3:'🌱',4:'🌱',5:'🌿',6:'☀️',
-  7:'☀️',8:'☀️',9:'🍂',10:'🍂',11:'🍂',12:'❄️',
+  1: Snowflake, 2: Snowflake, 3: Sprout, 4: Sprout, 5: Leaf, 6: Sun,
+  7: Sun, 8: Sun, 9: Leaf, 10: Leaf, 11: Leaf, 12: Snowflake,
 };
 
 // ── Meteorologia (Open-Meteo) ─────────────────────────────────────────────────
@@ -51,10 +54,10 @@ const WeatherCard = ({ weather }) => {
   if (!weather) return null;
 
   const getActivityInfo = (score) => {
-    if (score >= 4) return { label: t('actExcellent'), emoji: '🟢', color: 'text-forest-700', bg: 'bg-cream-100 border-sage-200' };
-    if (score >= 3) return { label: t('actGood'),      emoji: '🟡', color: 'text-forest-700', bg: 'bg-cream-100 border-sage-200' };
-    if (score >= 2) return { label: t('actModerate'),  emoji: '🟠', color: 'text-amber-700',  bg: 'bg-amber-50 border-amber-200' };
-    return              { label: t('actLow'),       emoji: '🔴', color: 'text-muted',       bg: 'bg-cream-100 border-sage-200' };
+    if (score >= 4) return { label: t('actExcellent'), dot: 'bg-green-600',  color: 'text-forest-700', bg: 'bg-cream-100 border-sage-200' };
+    if (score >= 3) return { label: t('actGood'),      dot: 'bg-forest-700', color: 'text-forest-700', bg: 'bg-cream-100 border-sage-200' };
+    if (score >= 2) return { label: t('actModerate'),  dot: 'bg-amber-500',  color: 'text-amber-700',  bg: 'bg-amber-50 border-amber-200' };
+    return              { label: t('actLow'),       dot: 'bg-sage-500',   color: 'text-muted',       bg: 'bg-cream-100 border-sage-200' };
   };
 
   const getTerrainLabel = (elev) => {
@@ -76,18 +79,18 @@ const WeatherCard = ({ weather }) => {
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm font-semibold text-ink">{t('terrainCard')}</span>
         <span className={`text-xs font-bold px-2.5 py-1 rounded-pill bg-white ${act.color}`}>
-          {act.emoji} {t('activityLabel')} {act.label}
+          <span className={`inline-block w-2 h-2 rounded-pill mr-1.5 align-middle ${act.dot}`} aria-hidden="true" />{t('activityLabel')} {act.label}
         </span>
       </div>
 
       <div className="grid grid-cols-3 gap-2 mb-3">
         {[
-          { icon: '🌧️', val: `${weather.totalRain} mm`, sub: t('rainLabel') },
-          { icon: '🌡️', val: `${weather.avgMin}–${weather.avgMax}°`, sub: t('tempLabel') },
-          { icon: '🏔️', val: `${weather.elevation} m`, sub: getTerrainLabel(weather.elevation) },
-        ].map(({ icon, val, sub }) => (
+          { Icon: CloudRain,   val: `${weather.totalRain} mm`, sub: t('rainLabel') },
+          { Icon: Thermometer, val: `${weather.avgMin}–${weather.avgMax}°`, sub: t('tempLabel') },
+          { Icon: Mountain,    val: `${weather.elevation} m`, sub: getTerrainLabel(weather.elevation) },
+        ].map(({ Icon, val, sub }) => (
           <div key={sub} className="bg-white rounded-btn p-2.5 text-center">
-            <div className="text-lg mb-0.5">{icon}</div>
+            <div className="flex justify-center mb-1 text-forest-700"><Icon size={18} strokeWidth={1.5} /></div>
             <div className="text-sm font-bold text-ink">{val}</div>
             <div className="text-xs text-muted leading-tight">{sub}</div>
           </div>
@@ -147,7 +150,7 @@ const SpeciesCard = ({ species, probability, maxProb, rank, info }) => {
             <img src={info.photo_url} alt={species} className="w-full h-full object-cover"
               onError={e => { e.target.style.display = 'none'; }} />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-2xl">🍄</div>
+            <div className="w-full h-full flex items-center justify-center text-sage-500"><Sprout size={22} strokeWidth={1.5} /></div>
           )}
           <div className="absolute top-1 left-1 bg-black/50 text-white text-xs font-bold
                           w-5 h-5 rounded-pill flex items-center justify-center">{rank + 1}</div>
@@ -181,7 +184,7 @@ const SpeciesCard = ({ species, probability, maxProb, rank, info }) => {
             className="w-full flex items-center justify-between px-3 py-2 text-xs
                        text-forest-700 hover:bg-cream-100 transition-colors">
             <span className="font-semibold">
-              🔎 {t('howToId')} ({tips.length} {t('tipsWord')})
+              <Search size={12} className="inline mr-1 -mt-px" />{t('howToId')} ({tips.length} {t('tipsWord')})
             </span>
             {showTips ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
           </button>
@@ -193,13 +196,18 @@ const SpeciesCard = ({ species, probability, maxProb, rank, info }) => {
                 className="overflow-hidden"
               >
                 <ol className="px-3 pb-3 space-y-2">
-                  {tips.map((tip, i) => (
-                    <li key={i} className="flex items-start gap-2 text-xs text-muted leading-relaxed">
-                      <span className="shrink-0 w-4 h-4 rounded-pill bg-cream-100 text-forest-700
-                                       font-bold text-center leading-4 mt-0.5">{i + 1}</span>
-                      <span>{tip}</span>
-                    </li>
-                  ))}
+                  {tips.map((tip, i) => {
+                    const { kind, text } = parseTip(tip);
+                    return (
+                      <li key={i} className="flex items-start gap-2 text-xs text-muted leading-relaxed">
+                        {kind === 'warn'
+                          ? <AlertTriangle size={14} className="shrink-0 text-alert mt-0.5" />
+                          : <span className="shrink-0 w-4 h-4 rounded-pill bg-cream-100 text-forest-700
+                                             font-bold text-center leading-4 mt-0.5">{i + 1}</span>}
+                        <span>{text}</span>
+                      </li>
+                    );
+                  })}
                 </ol>
               </motion.div>
             )}
@@ -314,7 +322,7 @@ const NearbyMushrooms = ({ geo, month }) => {
     setLoadingInfo(true);
     fetch(`${API_URL}/species-info`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ species: allSp.slice(0, 8) }),
+      body: JSON.stringify({ lang, species: allSp.slice(0, 8) }),
     })
       .then(r => r.json())
       .then(info => {
@@ -323,7 +331,7 @@ const NearbyMushrooms = ({ geo, month }) => {
         if (!rest.length) { setLoadingInfo(false); return; }
         return fetch(`${API_URL}/species-info`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ species: rest }),
+          body: JSON.stringify({ lang, species: rest }),
         }).then(r => r.json()).then(i2 => setSpeciesInfo(prev => ({ ...prev, ...i2 })));
       })
       .catch(() => {})
@@ -336,7 +344,7 @@ const NearbyMushrooms = ({ geo, month }) => {
     return (
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
         className="bg-amber-50 border border-amber-200 rounded-card p-8 text-center">
-        <div className="text-4xl mb-3">📍</div>
+        <div className="flex justify-center mb-3 text-amber-700"><MapPin size={32} strokeWidth={1.5} /></div>
         <p className="text-amber-800 font-semibold">{t('nearbyNoGeoTitle')}</p>
         <p className="text-amber-600 text-sm mt-2 leading-relaxed">{t('nearbyNoGeoDesc')}</p>
       </motion.div>
@@ -367,7 +375,7 @@ const NearbyMushrooms = ({ geo, month }) => {
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <span className="flex items-center gap-1.5 text-sm font-medium">
-                <Calendar size={13} /> {SEASONS[month]} {monthName}
+                <Calendar size={13} /> {React.createElement(SEASONS[month] || Leaf, { size: 13 })} {monthName}
               </span>
               <span className="flex items-center gap-1.5 text-sm font-medium">
                 <MapPin size={13} /> {geo.lat.toFixed(2)}°N, {geo.lon.toFixed(2)}°E
@@ -421,7 +429,7 @@ const NearbyMushrooms = ({ geo, month }) => {
             </p>
             {waking && (
               <p className="text-muted text-xs text-center max-w-[220px] leading-relaxed">
-                El servidor gratuït adorm quan no s'usa. Només triga la primera vegada.
+                {t('serverSleeping')}
               </p>
             )}
           </motion.div>
@@ -455,7 +463,7 @@ const NearbyMushrooms = ({ geo, month }) => {
               <div className="flex items-center gap-2 mb-2">
                 <span className="w-2 h-2 rounded-pill bg-forest-900 inline-block" />
                 <span className="text-xs font-semibold text-forest-700 uppercase tracking-wide">
-                  ✅ {t('edib_edible')}
+                  {t('edib_edible')}
                 </span>
                 {loadingInfo && <Loader2 size={11} className="animate-spin text-muted" />}
               </div>
@@ -527,7 +535,7 @@ const NearbyMushrooms = ({ geo, month }) => {
           {filterEdible && total === 0 && !loadingInfo && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
               className="text-center py-8 text-muted">
-              <div className="text-3xl mb-2">🍄</div>
+              <div className="flex justify-center mb-2 text-sage-500"><Sprout size={28} strokeWidth={1.5} /></div>
               <p className="text-sm font-medium text-muted">{t('filterNoResults')}</p>
               <button onClick={() => setFilterEdible(false)}
                 className="mt-3 text-xs text-forest-700 underline">{t('filterShowAll')}</button>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Search, ExternalLink, Phone, AlertTriangle } from 'lucide-react';
+import { Search, ExternalLink, Phone, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useT } from '../context/LanguageContext';
 
 const CANTONS = [
@@ -32,9 +32,10 @@ const CANTONS = [
   { abbr:'ZH', name:'Zürich',                lang:'de',    url:'https://www.stadtforstamt.ch', highlight: true },
 ];
 
+// Idiomes oficials del cantó (codis, sense banderes)
 const LANG_FLAG = {
-  de:'🇩🇪', fr:'🇫🇷', it:'🇮🇹', rm:'🗺️',
-  'de/fr':'🇩🇪🇫🇷','fr/de':'🇫🇷🇩🇪','de/rm/it':'🇩🇪🇮🇹','fr/it':'🇫🇷🇮🇹',
+  de: 'DE', fr: 'FR', it: 'IT', rm: 'RM',
+  'de/fr': 'DE · FR', 'fr/de': 'FR · DE', 'de/rm/it': 'DE · RM · IT', 'fr/it': 'FR · IT',
 };
 
 const PilzkontrolleInfo = () => {
@@ -118,7 +119,7 @@ const PilzkontrolleInfo = () => {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 mb-0.5">
                   <span className="text-sm font-semibold text-ink">{c.name}</span>
-                  <span className="text-xs">{LANG_FLAG[c.lang] || ''}</span>
+                  <span className="text-[10px] font-semibold text-muted bg-cream-100 border border-sage-200 rounded-pill px-1.5 py-px">{LANG_FLAG[c.lang] || ''}</span>
                   {c.highlight && (
                     <span className="text-xs bg-cream-100 text-forest-700 px-1.5 py-0.5
                                      rounded-pill font-medium">
@@ -145,11 +146,11 @@ const PilzkontrolleInfo = () => {
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
         className="bg-cream-50 rounded-card p-4 space-y-2.5">
         <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">
-          🍄 {t('pilzTipsTitle')}
+          {t('pilzTipsTitle')}
         </p>
-        {t('pilzTips').map(([icon, text]) => (
+        {t('pilzTips').map(([, text]) => (
           <div key={text} className="flex items-start gap-2.5">
-            <span className="text-base shrink-0 mt-0.5">{icon}</span>
+            <CheckCircle size={14} className="text-forest-700 shrink-0 mt-0.5" />
             <p className="text-xs text-muted leading-relaxed">{text}</p>
           </div>
         ))}
