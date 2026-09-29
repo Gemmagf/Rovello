@@ -5,33 +5,21 @@ import { useT } from '../context/LanguageContext';
 
 // Logo que replica les làmines radials de la imatge original
 export const RovelloLogo = ({ size = 48 }) => {
-  const cx = 50, cy = 58, r = 34;
-  const stemTop = cy;
-  // 13 línies radials de 0° a 180° (semicercle superior)
-  const angles = Array.from({ length: 13 }, (_, i) => (i * 180) / 12);
+  // Cèrcol fi + 25 làmines radials crema sobre verd + tija trapezoïdal
+  const cx = 50, cy = 59, rRim = 36, rGill = 32.5;
+  const gills = Array.from({ length: 25 }, (_, i) => (i * 7.5 * Math.PI) / 180);
   return (
     <svg width="100%" height="100%" viewBox="0 0 100 100" style={{ maxWidth: size, maxHeight: size }} xmlns="http://www.w3.org/2000/svg">
       <rect width="100" height="100" rx="20" fill="#2E4B3A" />
-      {/* Cap semicircle */}
-      <path
-        d={`M${cx - r} ${stemTop} A${r} ${r} 0 0 1 ${cx + r} ${stemTop} Z`}
-        fill="#F2EFE6"
-      />
-      {/* Radial gill lines */}
-      {angles.map((deg, i) => {
-        const rad = (deg * Math.PI) / 180;
-        const x2 = (cx + r * Math.cos(Math.PI - rad)).toFixed(2);
-        const y2 = (stemTop - r * Math.sin(rad)).toFixed(2);
-        return (
-          <line key={i}
-            x1={cx} y1={stemTop}
-            x2={x2} y2={y2}
-            stroke="#2E4B3A" strokeWidth="2.5" strokeLinecap="round"
-          />
-        );
-      })}
-      {/* Stem */}
-      <rect x="43" y={stemTop} width="14" height="20" rx="5" fill="#F2EFE6" />
+      <path d={`M${cx - rRim} ${cy} A${rRim} ${rRim} 0 0 1 ${cx + rRim} ${cy}`}
+        fill="none" stroke="#F2EFE6" strokeWidth="2.4" strokeLinecap="round" />
+      {gills.map((a, i) => (
+        <line key={i} x1={cx} y1={cy}
+          x2={(cx + rGill * Math.cos(Math.PI - a)).toFixed(2)} y2={(cy - rGill * Math.sin(a)).toFixed(2)}
+          stroke="#F2EFE6" strokeWidth="1.9" strokeLinecap="round" />
+      ))}
+      <path d={`M${cx - 5.5} 55 L${cx + 5.5} 55 L${cx + 8} 86 L${cx - 8} 86 Z`}
+        fill="#F2EFE6" stroke="#F2EFE6" strokeWidth="4" strokeLinejoin="round" />
     </svg>
   );
 };
