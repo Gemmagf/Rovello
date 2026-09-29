@@ -80,25 +80,67 @@ PRIOR_URL = os.environ.get("ROVELLO_PRIOR_URL") or f"{_RELEASE}/geo_temporal_pri
 _WARMUP = {"state": "idle", "phase": None, "error": None, "seconds": None}
 
 
+def _cleanup_stale_parts(dest: Path) -> None:
+    """Esborra fitxers .part d'altres processos que ja no existeixen (workers
+    morts a mig descarregar) o molt antics, perquè no omplin el disc efímer."""
+    import time
+    for p in dest.parent.glob(dest.name + ".*.part"):
+        try:
+            pid = int(p.name.rsplit(".", 2)[-2])
+        except (ValueError, IndexError):
+            pid = None
+        if pid == os.getpid():
+            continue
+        alive = False
+        if pid is not None:
+            try:
+                os.kill(pid, 0)
+                alive = True
+            except OSError:
+                alive = False
+        try:
+            old = (time.time() - p.stat().st_mtime) > 3600
+        except OSError:
+            old = True
+        if alive and not old:
+            continue
+        try:
+            p.unlink()
+            log.info(f"Esborrat .part orfe: {p.name}")
+        except OSError:
+            pass
+
+
 def _download(url: str, dest: Path) -> None:
     """Descarrega url → dest de forma atòmica (fitxer .part + rename)."""
     dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_suffix(dest.suffix + ".part")
+    _cleanup_stale_parts(dest)
+    tmp = dest.with_name(f"{dest.name}.{os.getpid()}.part")  # únic per procés
     log.info(f"Descarregant {url} → {dest}")
     from urllib.parse import urlparse
     _WARMUP["phase"] = f"connecting {urlparse(url).netloc} for {dest.name}"
     done = 0
-    # timeout=(connexió, lectura): que els problemes de xarxa aflorin aviat
-    with http_req.get(url, stream=True, timeout=(20, 90), allow_redirects=True) as r:
-        log.info(f"HTTP {r.status_code} {r.url} content-length={r.headers.get('content-length')}")
-        r.raise_for_status()
-        _WARMUP["phase"] = f"downloading {dest.name} (0 MB)"
-        with open(tmp, "wb") as f:
-            for chunk in r.iter_content(chunk_size=1 << 20):
-                f.write(chunk)
-                done += len(chunk)
-                _WARMUP["phase"] = f"downloading {dest.name} ({done / 1e6:.0f} MB)"
-    tmp.replace(dest)
+    try:
+        # timeout=(connexió, lectura): que els problemes de xarxa aflorin aviat
+        with http_req.get(url, stream=True, timeout=(20, 90), allow_redirects=True) as r:
+            log.info(f"HTTP {r.status_code} {r.url} content-length={r.headers.get('content-length')}")
+            r.raise_for_status()
+            expected = int(r.headers.get("content-length") or 0)
+            _WARMUP["phase"] = f"downloading {dest.name} (0 MB)"
+            with open(tmp, "wb") as f:
+                for chunk in r.iter_content(chunk_size=1 << 20):
+                    f.write(chunk)
+                    done += len(chunk)
+                    _WARMUP["phase"] = f"downloading {dest.name} ({done / 1e6:.0f} MB)"
+        if expected and done != expected:
+            raise IOError(f"Descàrrega incompleta de {dest.name}: {done} de {expected} bytes")
+    except BaseException:
+        tmp.unlink(missing_ok=True)  # mai deixar un .part propi a mitges
+        raise
+    if dest.exists():  # un altre procés ha acabat abans (p. ex. master amb --preload)
+        tmp.unlink(missing_ok=True)
+    else:
+        tmp.replace(dest)
     log.info(f"OK {dest.name} ({dest.stat().st_size / 1e6:.1f} MB)")
 
 
@@ -401,8 +443,31 @@ def _warmup():
         _WARMUP["seconds"] = round(time.time() - t0, 1)
 
 
-if os.environ.get("ROVELLO_WARMUP", "1") != "0":
+_warmup_started = False
+
+
+def start_warmup() -> bool:
+    """Arrenca el warmup en un fil de fons (idempotent).
+
+    NO es crida a l'import del mòdul: amb `gunicorn --preload` el mòdul
+    s'importa al procés master i els fils no sobreviuen el fork, així que el
+    worker es quedaria sense model. Es crida des de post_fork
+    (gunicorn.conf.py), des de __main__, o com a fallback a la primera petició.
+    """
+    global _warmup_started
+    if _warmup_started or os.environ.get("ROVELLO_WARMUP", "1") == "0":
+        return False
+    _warmup_started = True
+    _WARMUP.update({"state": "idle", "phase": None, "error": None, "seconds": None})
     _threading.Thread(target=_warmup, name="model-warmup", daemon=True).start()
+    log.info(f"Warmup del model iniciat (pid {os.getpid()})")
+    return True
+
+
+@APP.before_request
+def _warmup_fallback():
+    if not _warmup_started:
+        start_warmup()
 
 
 # ----------------------------------------------------------------------------
@@ -439,10 +504,15 @@ def diag():
             "https_proxy", "NO_PROXY", "RENDER", "RENDER_SERVICE_TYPE")},
         "onnx_path": str(ONNX_PATH),
         "onnx_exists": ONNX_PATH.exists(),
-        "onnx_part_bytes": (ONNX_PATH.with_suffix(".onnx.part").stat().st_size
-                            if ONNX_PATH.with_suffix(".onnx.part").exists() else None),
+        "onnx_part_files": ({p.name: p.stat().st_size
+                             for p in ONNX_PATH.parent.glob(ONNX_PATH.name + ".*part")}
+                            if ONNX_PATH.parent.exists() else {}),
         "warmup": _WARMUP,
+        "warmup_started_in_this_process": _warmup_started,
         "threads": [t.name for t in _threading.enumerate()],
+        "pid": os.getpid(),
+        "ppid": os.getppid(),
+        "argv": sys.argv,
     }
     try:
         out["resolv_conf"] = open("/etc/resolv.conf").read()[:500]
@@ -1057,11 +1127,16 @@ def species_info():
 @APP.route("/species", methods=["GET"])
 def species():
     """Llista de totes les espècies que el model pot predir."""
-    return jsonify({"species": INFER.idx_to_class})
+    if INFER is not None:
+        return jsonify({"species": INFER.idx_to_class})
+    if PRIOR is not None:  # mateix label_map que el model
+        return jsonify({"species": list(PRIOR.species_list)})
+    return jsonify({"species": _get_infer().idx_to_class})
 
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
+    start_warmup()
     APP.run(host="0.0.0.0", port=port, debug=False)
 # gunicorn compatibility alias
 app = APP
