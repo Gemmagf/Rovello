@@ -36,7 +36,9 @@ FILES = [
      MODEL_DIR / "config.json", False),
     # best.pt (torch) només si s'ha demanat explícitament: pesa 114 MB i no
     # s'usa en producció (onnxruntime).
-    (os.environ.get("ROVELLO_MODEL_URL", ""), MODEL_DIR / "best.pt", False),
+    (os.environ.get("ROVELLO_MODEL_URL", "")
+     if os.environ.get("ROVELLO_MODEL_BACKEND", "onnx").lower() == "torch" else "",
+     MODEL_DIR / "best.pt", False),
 ]
 
 

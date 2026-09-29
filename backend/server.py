@@ -23,10 +23,13 @@ import json
 import logging
 from pathlib import Path
 
+import time
+
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from werkzeug.exceptions import HTTPException
 import requests as http_req
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -78,6 +81,14 @@ PRIOR_URL = os.environ.get("ROVELLO_PRIOR_URL") or f"{_RELEASE}/geo_temporal_pri
 
 # Estat del warmup/càrrega, visible a /health per diagnosticar el desplegament
 _WARMUP = {"state": "idle", "phase": None, "error": None, "seconds": None}
+_LOAD_FAIL = {"ts": 0.0}
+
+
+def _note_load_failure(e: BaseException) -> None:
+    """Registra una fallada de càrrega (per a /health i per al backoff de /predict)."""
+    _LOAD_FAIL["ts"] = time.time()
+    _WARMUP["state"] = "failed"
+    _WARMUP["error"] = f"{type(e).__name__}: {e}"[:300]
 
 
 def _cleanup_stale_parts(dest: Path) -> None:
@@ -193,6 +204,34 @@ def _preprocess_np(pil_img: Image.Image, s: int) -> np.ndarray:
     x = np.asarray(img, dtype=np.float32) / 255.0          # HWC
     x = (x - _MEAN) / _STD
     return np.ascontiguousarray(x.transpose(2, 0, 1)[None])  # 1CHW
+
+
+# Descodificació segura de les fotos pujades (free tier: 512 MB de RAM)
+MAX_PIXELS = int(os.environ.get("ROVELLO_MAX_PIXELS", str(60_000_000)))  # 60 MP
+Image.MAX_IMAGE_PIXELS = MAX_PIXELS  # PIL llança DecompressionBombError per sobre de 2x
+_DECODE_MAX_SIDE = 1024
+
+
+def _open_image(stream, target: int = 224) -> Image.Image:
+    """Obre una foto sense materialitzar-la mai a resolució completa.
+
+    - Rebutja imatges > MAX_PIXELS llegint només la capçalera.
+    - JPEG: demana al descodificador una versió reduïda (escala 1/2..1/8 al
+      domini DCT) que ja cobreix el que necessita el model (una foto de 48 MP
+      passa de ~600 MB a uns pocs MB de memòria).
+    - Aplica l'orientació EXIF (fotos de mòbil) i limita el costat màxim a
+      _DECODE_MAX_SIDE abans de convertir a RGB.
+    """
+    img = Image.open(stream)
+    w, h = img.size
+    if w * h > MAX_PIXELS:
+        raise ValueError(f"Imatge massa gran ({w}x{h}); màxim {MAX_PIXELS / 1e6:.0f} MP")
+    if img.format == "JPEG":
+        want = int(target * 1.14) * 2  # marge x2 per no perdre detall al redimensionar
+        img.draft("RGB", (want, want))
+    img = ImageOps.exif_transpose(img)
+    img.thumbnail((_DECODE_MAX_SIDE, _DECODE_MAX_SIDE))
+    return img.convert("RGB")
 
 
 class OnnxInference:
@@ -321,22 +360,35 @@ class TFInference:
         return preds[0]
 
 
-def _try_onnx():
-    _ensure_files((
-        (ONNX_URL, ONNX_PATH),
-        (LABEL_MAP_URL, ONNX_PATH.parent / "label_map.json"),
-    ))
+def _try_onnx(download: bool = True):
+    files = ((ONNX_URL, ONNX_PATH), (LABEL_MAP_URL, ONNX_PATH.parent / "label_map.json"))
+    if download:
+        _ensure_files(files)
+    elif not ONNX_PATH.exists():
+        raise FileNotFoundError(f"{ONNX_PATH} no existeix (només es baixa si és el backend preferit)")
     log.info(f"Carregant ONNX: {ONNX_PATH}")
-    return OnnxInference(ONNX_PATH)
+    try:
+        return OnnxInference(ONNX_PATH)
+    except Exception as e:
+        if not download:
+            raise
+        # Fitxer corrupte/incomplet a disc: esborra'l i torna-ho a provar un sol cop
+        log.warning(f"ONNX il·legible ({e!r}); es torna a descarregar")
+        ONNX_PATH.unlink(missing_ok=True)
+        _ensure_files(files)
+        return OnnxInference(ONNX_PATH)
 
 
-def _try_torch():
-    _ensure_model_files()
+def _try_torch(download: bool = True):
+    if download:
+        _ensure_model_files()
+    elif not MODEL_PATH.exists():
+        raise FileNotFoundError(f"{MODEL_PATH} no existeix (només es baixa si és el backend preferit)")
     log.info(f"Carregant Torch model: {MODEL_PATH}")
     return TorchInference(MODEL_PATH)
 
 
-def _try_tf():
+def _try_tf(download: bool = False):
     if not DEFAULT_TF_MODEL.exists():
         raise FileNotFoundError(f"No existeix {DEFAULT_TF_MODEL}")
     log.info(f"Carregant TF model: {DEFAULT_TF_MODEL}")
@@ -368,7 +420,7 @@ def load_inference():
         try:
             log.info(f"Intentant backend {name}")
             _WARMUP["phase"] = f"backend {name}: preparing files"
-            return fn()
+            return fn(download=(name == MODEL_BACKEND))  # els altres només si ja són a disc
         except Exception as e:
             log.exception(f"Backend {name} no disponible")
             errors.append(f"{name}: {type(e).__name__}: {e}")
@@ -402,6 +454,14 @@ import threading as _threading
 
 APP = Flask(__name__)
 CORS(APP)
+# Límit de pujada (el frontend ja redueix les fotos; això protegeix la memòria)
+APP.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("ROVELLO_MAX_UPLOAD_MB", "12")) * 1024 * 1024
+
+
+@APP.errorhandler(HTTPException)
+def _http_error_json(e):
+    """Tots els errors HTTP (413, 404, 405, 500...) en JSON perquè el frontend els llegeixi."""
+    return jsonify({"error": e.name, "detail": e.description, "status": e.code}), e.code
 
 log.info("Inicialitzant servidor Rovello...")
 PRIOR = load_prior()
@@ -413,7 +473,6 @@ def _get_infer():
     global INFER
     if INFER is not None:
         return INFER
-    _WARMUP["phase"] = "waiting for lock"
     with _infer_lock:
         if INFER is None:
             log.info("Carregant model...")
@@ -436,8 +495,7 @@ def _warmup():
         _WARMUP["state"] = "ready"
     except Exception as e:
         log.exception("Warmup del model ha fallat")
-        _WARMUP["state"] = "failed"
-        _WARMUP["error"] = f"{type(e).__name__}: {e}"[:300]
+        _note_load_failure(e)
     finally:
         _WARMUP["phase"] = None
         _WARMUP["seconds"] = round(time.time() - t0, 1)
@@ -499,9 +557,10 @@ def diag():
     import time
 
     out: dict = {
-        "env": {k: os.environ.get(k) for k in (
-            "ROVELLO_MODEL_BACKEND", "HTTP_PROXY", "HTTPS_PROXY", "http_proxy",
-            "https_proxy", "NO_PROXY", "RENDER", "RENDER_SERVICE_TYPE")},
+        "backend_requested": MODEL_BACKEND,
+        "env_set": {k: bool(os.environ.get(k)) for k in (
+            "HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "NO_PROXY",
+            "RENDER", "ROVELLO_MODEL_BACKEND", "ROVELLO_ONNX_URL", "ROVELLO_MODEL_URL")},
         "onnx_path": str(ONNX_PATH),
         "onnx_exists": ONNX_PATH.exists(),
         "onnx_part_files": ({p.name: p.stat().st_size
@@ -514,11 +573,6 @@ def diag():
         "ppid": os.getppid(),
         "argv": sys.argv,
     }
-    try:
-        out["resolv_conf"] = open("/etc/resolv.conf").read()[:500]
-    except Exception as e:
-        out["resolv_conf"] = f"err: {e}"
-
     def timed(name, fn, limit=8.0):
         t0 = time.time()
         res: dict = {}
@@ -543,16 +597,16 @@ def diag():
         with socket.create_connection((host, port), timeout=5) as s:
             return s.getpeername()[0]
 
-    timed("dns_github", lambda: dns("github.com"))
-    timed("dns_objects_github", lambda: dns("objects.githubusercontent.com"))
-    timed("dns_inaturalist", lambda: dns("api.inaturalist.org"))
-    timed("dns_pypi", lambda: dns("pypi.org"))
-    timed("tcp_github_443", lambda: tcp("github.com"))
-    timed("tcp_ip_1_1_1_1_443", lambda: tcp("1.1.1.1"))
-    timed("https_github_head", lambda: http_req.head("https://github.com", timeout=5).status_code)
-    timed("https_inaturalist", lambda: http_req.get(
-        "https://api.inaturalist.org/v1/ping", timeout=5).status_code)
-    timed("https_release_head", lambda: http_req.head(ONNX_URL, timeout=5, allow_redirects=False).status_code)
+    if os.environ.get("ROVELLO_DIAG_NET") == "1":
+        # Sondes de xarxa (fan peticions sortints): només si s'activen explícitament
+        timed("dns_github", lambda: dns("github.com"))
+        timed("dns_objects_github", lambda: dns("objects.githubusercontent.com"))
+        timed("dns_inaturalist", lambda: dns("api.inaturalist.org"))
+        timed("tcp_github_443", lambda: tcp("github.com"))
+        timed("https_github_head", lambda: http_req.head("https://github.com", timeout=5).status_code)
+        timed("https_release_head", lambda: http_req.head(ONNX_URL, timeout=5, allow_redirects=False).status_code)
+    else:
+        out["net_probes"] = "desactivades (ROVELLO_DIAG_NET=1 per activar-les)"
     return jsonify(out)
 
 
@@ -561,11 +615,26 @@ def predict():
     if "image" not in request.files:
         return jsonify({"error": "No image file in request (field 'image')"}), 400
 
+    if INFER is None:
+        st = _WARMUP["state"]
+        if _warmup_started and st in ("idle", "loading"):
+            # El model encara s'està baixant/carregant: resposta immediata (no
+            # bloquegem els 2 fils del worker); el frontend reintenta sol.
+            resp = jsonify({"error": "Model carregant-se", "retry": True,
+                            "detail": _WARMUP["phase"] or "warmup"})
+            resp.headers["Retry-After"] = "10"
+            return resp, 503
+        if st == "failed" and (time.time() - _LOAD_FAIL["ts"]) < 30:
+            resp = jsonify({"error": "Model no disponible", "retry": True,
+                            "detail": _WARMUP["error"]})
+            resp.headers["Retry-After"] = "30"
+            return resp, 503
+
     file = request.files["image"]
     try:
-        img = Image.open(file.stream).convert("RGB")
+        img = _open_image(file.stream)
     except Exception as e:
-        log.exception("Imatge invàlida")
+        log.warning(f"Imatge invàlida: {e!r}")
         return jsonify({"error": "Invalid image", "detail": str(e)}), 400
 
     # Camps opcionals de context
@@ -599,7 +668,10 @@ def predict():
         infer = _get_infer()
     except Exception as e:
         log.exception("Model no disponible")
-        return jsonify({"error": "Model no disponible", "detail": str(e)}), 503
+        _note_load_failure(e)
+        resp = jsonify({"error": "Model no disponible", "retry": True, "detail": str(e)})
+        resp.headers["Retry-After"] = "30"
+        return resp, 503
 
     try:
         image_probs = infer.predict_probs(img)

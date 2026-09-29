@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 
-const ResultDisplay = ({ result, isLoading }) => {
+const ResultDisplay = ({ result, isLoading, statusText }) => {
   if (isLoading) {
     return (
       <motion.div
@@ -16,8 +16,12 @@ const ResultDisplay = ({ result, isLoading }) => {
         >
           <Loader2 className="w-10 h-10 text-forest-700" strokeWidth={1.5} />
         </motion.div>
-        <p className="text-ink font-medium mb-1">Analitzant el teu bolet...</p>
-        <p className="text-muted text-sm">Un moment, si us plau.</p>
+        <p className="text-ink font-medium mb-1">{statusText || 'Analitzant el teu bolet...'}</p>
+        <p className="text-muted text-sm">
+          {statusText && statusText.startsWith('Preparant identificador')
+            ? "El servidor gratuït s'està despertant; pot trigar fins a un minut."
+            : 'Un moment, si us plau.'}
+        </p>
       </motion.div>
     );
   }

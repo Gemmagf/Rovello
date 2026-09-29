@@ -25,6 +25,7 @@ const AppInner = () => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [result, setResult] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [statusText, setStatusText] = useState('');
   const [geo, setGeo] = useState(null);
   const [geoStatus, setGeoStatus] = useState('idle');
 
@@ -50,7 +51,7 @@ const AppInner = () => {
     setIsAnalyzing(true);
     setResult(null);
     try {
-      const context = { month, ...(geo || {}) };
+      const context = { month, ...(geo || {}), onStatus: setStatusText };
       const analysis = await analyzeMushroom(selectedFile, context);
       setResult(analysis);
     } catch {
@@ -62,6 +63,7 @@ const AppInner = () => {
       });
     } finally {
       setIsAnalyzing(false);
+      setStatusText('');
     }
   };
 
@@ -142,7 +144,7 @@ const AppInner = () => {
                   )}
                   <AnimatePresence mode="wait">
                     <ResultDisplay key={result ? 'result' : 'loading'}
-                      result={result} isLoading={isAnalyzing} />
+                      result={result} isLoading={isAnalyzing} statusText={statusText} />
                   </AnimatePresence>
                   {result && result.contextUsed && (
                     <p className="text-xs text-center text-forest-700">{t('contextUsed')}</p>
