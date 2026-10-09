@@ -88,6 +88,11 @@ const CandidateRow = ({ c, t, withPhoto }) => {
 
 const Footer = ({ result, t }) => (
   <div className="mt-4 space-y-1.5">
+    {result.zoomFallback && (
+      <p className="flex items-start gap-1.5 text-xs text-amber-800">
+        <AlertTriangle size={13} className="shrink-0 mt-px" /> {t('zoomFallbackNote')}
+      </p>
+    )}
     {result.numPhotos > 1 && (
       <p className="flex items-start gap-1.5 text-xs text-forest-700">
         <Images size={13} className="shrink-0 mt-px" /> {fill(t('photosUsed'), { n: result.numPhotos })}

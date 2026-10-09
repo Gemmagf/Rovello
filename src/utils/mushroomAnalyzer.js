@@ -85,6 +85,9 @@ export const analyzeMushroom = async (input, context = {}) => {
     const upload = await downscaleImage(photos[i].file, photos[i].crop);
     formData.append("image", upload, `photo${i + 1}.jpg`);
   }
+  // L'usuari ha enquadrat (zoom) totes les fotos? Si no, el servidor pot provar un zoom central
+  const framed = photos.every((p) => p.crop && p.crop.zoom && p.crop.zoom > 1.05);
+  formData.append("cropped", framed ? "1" : "0");
 
   const month = context.month ?? new Date().getMonth() + 1;
   formData.append("month", String(month));
@@ -144,8 +147,11 @@ export const analyzeMushroom = async (input, context = {}) => {
     }));
     // Nivell de certesa (probabilitats calibrades al servidor)
     const second = predictions[1]?.prob ?? 0;
-    const level = top.prob >= CONF_SURE && top.prob - second >= 0.15 ? "sure"
+    let level = top.prob >= CONF_SURE && top.prob - second >= 0.15 ? "sure"
       : top.prob >= CONF_LIKELY ? "likely" : "unsure";
+    // Si el servidor ha hagut d'ampliar el centre de la foto, mai «segur»
+    const zoomFallback = data.zoom_fallback === true;
+    if (zoomFallback && level === "sure") level = "likely";
     const genus = (data.genera || [])[0] || null;
 
     return {
@@ -166,6 +172,7 @@ export const analyzeMushroom = async (input, context = {}) => {
       genus: genus && genus.n_species > 1 ? genus : null,
       anyToxic: candidates.some((c) => c.edibility === "toxic" || c.edibility === "caution"),
       numPhotos: data.num_photos || photos.length,
+      zoomFallback,
       contextUsed: data.context_used === true,
     };
   } catch (error) {

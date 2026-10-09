@@ -10,6 +10,7 @@ export const translations = {
   //  CATALÀ (default)
   // ════════════════════════════════════════════════════════════════════════════
   ca: {
+    zoomFallbackNote: "El servidor ha ampliat el centre de la foto per analitzar-la: enquadra el bolet amb el zoom per confirmar-ho.",
     photoN: "Foto",
     removePhoto: "Treu la foto",
     addPhoto: "Afegeix una altra foto",
@@ -208,6 +209,7 @@ export const translations = {
   //  ENGLISH
   // ════════════════════════════════════════════════════════════════════════════
   en: {
+    zoomFallbackNote: "The server zoomed into the centre of the photo to analyse it: frame the mushroom with the zoom to confirm.",
     photoN: "Photo",
     removePhoto: "Remove photo",
     addPhoto: "Add another photo",
@@ -396,6 +398,7 @@ export const translations = {
   //  DEUTSCH
   // ════════════════════════════════════════════════════════════════════════════
   de: {
+    zoomFallbackNote: "Der Server hat die Bildmitte vergrössert analysiert: rahme den Pilz mit dem Zoom ein, um es zu bestätigen.",
     photoN: "Foto",
     removePhoto: "Foto entfernen",
     addPhoto: "Weiteres Foto hinzufügen",

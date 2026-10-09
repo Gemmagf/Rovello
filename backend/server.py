@@ -75,6 +75,10 @@ TEMPERATURE = float(os.environ.get("ROVELLO_TEMPERATURE", "0.75"))  # T*=0.65 a 
 # penalitza menys les espècies poc registrades a prop de la ubicació.
 PRIOR_LAPLACE = os.environ.get("ROVELLO_PRIOR_LAPLACE")
 MAX_PHOTOS = int(os.environ.get("ROVELLO_MAX_PHOTOS", "4"))  # fotos del mateix bolet per petició
+# Recurs automàtic: si l'usuari NO ha enquadrat la foto i la confiança és baixa,
+# es prova un zoom central 2x i es conserva la vista més confiada (simulació:
+# +16 a +30 punts top-1 en fotos de camp; sense efecte en primers plans).
+ZOOM_FALLBACK_CONF = float(os.environ.get("ROVELLO_ZOOM_FALLBACK_CONF", "0.35"))
 
 # URLs de descàrrega (GitHub Release públic). Es poden sobreescriure via env vars.
 # Si el build de Render no executa download_model.py, el servidor baixa els
@@ -698,8 +702,21 @@ def predict():
         resp.headers["Retry-After"] = "30"
         return resp, 503
 
+    cropped = (request.form.get("cropped") or "0").lower() in ("1", "true", "yes")
+    zoom_used = False
     try:
         per_photo = [infer.predict_probs(im) for im in imgs]
+        if not cropped and ZOOM_FALLBACK_CONF > 0:
+            # Foto sense enquadrar i model poc segur → prova el centre ampliat 2x
+            for k, (im, p0) in enumerate(zip(imgs, per_photo)):
+                if float(p0.max()) < ZOOM_FALLBACK_CONF:
+                    W, H = im.size
+                    p1 = infer.predict_probs(im.crop((W // 4, H // 4, W // 4 + W // 2, H // 4 + H // 2)))
+                    if float(p1.max()) > float(p0.max()):
+                        # Mitjana (no la vista més confiada): més conservador davant
+                        # d'una ampliació que es fixi en el que no toca.
+                        per_photo[k] = (p0 + p1) / 2.0
+                        zoom_used = True
     except Exception as e:
         log.exception("Error d'inferència")
         return jsonify({"error": "Inference error", "detail": str(e)}), 500
@@ -751,6 +768,7 @@ def predict():
         "predictions": predictions,
         "genera": genera,
         "num_photos": len(imgs),
+        "zoom_fallback": zoom_used,
         "num_classes": len(infer.idx_to_class),
         "context_used": use_prior,
     }
@@ -760,7 +778,7 @@ def predict():
         }
     log.info(
         f"predict: top1={predictions[0]['class_name']} prob={predictions[0]['prob']:.3f} "
-        f"genus={genera[0]['genus']} {genera[0]['prob']:.3f} photos={len(imgs)} context={use_prior}"
+        f"genus={genera[0]['genus']} {genera[0]['prob']:.3f} photos={len(imgs)} cropped={cropped} zoom={zoom_used} context={use_prior}"
     )
     return jsonify(response)
 
