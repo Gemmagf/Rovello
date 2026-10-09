@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LanguageProvider, useT } from './context/LanguageContext';
 import Header from './components/Header';
@@ -24,7 +24,8 @@ const TAB_DATA          = 'data';
 const AppInner = () => {
   const { t, lang } = useT();
   const [activeTab, setActiveTab] = useState(TAB_IDENTIFICA);
-  const [selectedFile, setSelectedFile] = useState(null);
+  const photosRef = useRef([]);            // [{ file, crop }] (ho manté UploadArea)
+  const [photoCount, setPhotoCount] = useState(0);
   const [result, setResult] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [statusText, setStatusText] = useState('');
@@ -43,18 +44,19 @@ const AppInner = () => {
 
   useEffect(() => { tryGeolocation(); }, []); // eslint-disable-line
 
-  const handleImageSelect = (file) => {
-    setSelectedFile(file);
+  const handlePhotoCount = (n) => {
+    setPhotoCount(n);
     setResult(null);
   };
 
   const handleAnalyze = async () => {
-    if (!selectedFile) return;
+    const photos = photosRef.current || [];
+    if (!photos.length) return;
     setIsAnalyzing(true);
     setResult(null);
     try {
       const context = { month, ...(geo || {}), lang, onStatus: setStatusText };
-      const analysis = await analyzeMushroom(selectedFile, context);
+      const analysis = await analyzeMushroom(photos, context);
       setResult(analysis);
     } catch (e) {
       setResult({ ok: false, error: e?.message || 'unknown' });
@@ -135,12 +137,12 @@ const AppInner = () => {
                   className="space-y-6"
                 >
                   {geo && <LocalRules geo={geo} />}
-                  <UploadArea onImageSelect={handleImageSelect} />
-                  {selectedFile && (
+                  <UploadArea photosRef={photosRef} onCountChange={handlePhotoCount} />
+                  {photoCount > 0 && (
                     <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
                       exit={{ y: -20, opacity: 0 }}>
                       <AnalyzeButton onAnalyze={handleAnalyze}
-                        isAnalyzing={isAnalyzing} disabled={!selectedFile} />
+                        isAnalyzing={isAnalyzing} disabled={photoCount === 0} />
                     </motion.div>
                   )}
                   <AnimatePresence mode="wait">

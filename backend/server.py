@@ -68,6 +68,13 @@ ONNX_PATH = Path(os.environ.get("ROVELLO_ONNX_PATH", DEFAULT_ONNX_MODEL))
 PRIOR_PATH = Path(os.environ.get("ROVELLO_PRIOR_PATH", DEFAULT_PRIOR))
 DEFAULT_ALPHA = float(os.environ.get("ROVELLO_DEFAULT_ALPHA", "1.0"))
 DEFAULT_BETA = float(os.environ.get("ROVELLO_DEFAULT_BETA", "0.5"))
+# Calibratge de la confiança: softmax(logits / T). El model es va entrenar amb
+# label smoothing + mixup i surt infraconfiat; T<1 «esmola» (ajustat a validació).
+TEMPERATURE = float(os.environ.get("ROVELLO_TEMPERATURE", "0.75"))  # T*=0.65 a validació; 0.75 per prudència fora de distribució
+# Suavitzat del prior (None → el valor desat al pickle). Més alt = el prior
+# penalitza menys les espècies poc registrades a prop de la ubicació.
+PRIOR_LAPLACE = os.environ.get("ROVELLO_PRIOR_LAPLACE")
+MAX_PHOTOS = int(os.environ.get("ROVELLO_MAX_PHOTOS", "4"))  # fotos del mateix bolet per petició
 
 # URLs de descàrrega (GitHub Release públic). Es poden sobreescriure via env vars.
 # Si el build de Render no executa download_model.py, el servidor baixa els
@@ -261,7 +268,7 @@ class OnnxInference:
 
     def predict_probs(self, pil_img: Image.Image) -> np.ndarray:
         x = _preprocess_np(pil_img, self.img_size)
-        logits = self.sess.run(None, {self.input_name: x})[0][0].astype(np.float64)
+        logits = self.sess.run(None, {self.input_name: x})[0][0].astype(np.float64) / TEMPERATURE
         logits -= logits.max()
         p = np.exp(logits)
         return (p / p.sum()).astype(np.float32)
@@ -333,7 +340,7 @@ class TorchInference:
         x = self.transform(pil_img).unsqueeze(0).to(self.device)
         with self.torch.no_grad():
             logits = self.model(x)
-            probs = self.torch.softmax(logits, dim=1)[0].cpu().numpy()
+            probs = self.torch.softmax(logits / TEMPERATURE, dim=1)[0].cpu().numpy()
         return probs
 
 
@@ -465,6 +472,9 @@ def _http_error_json(e):
 
 log.info("Inicialitzant servidor Rovello...")
 PRIOR = load_prior()
+if PRIOR is not None and PRIOR_LAPLACE:
+    PRIOR.laplace_alpha = float(PRIOR_LAPLACE)
+    log.info(f"Prior: laplace_alpha={PRIOR.laplace_alpha}")
 INFER = None
 _infer_lock = _threading.Lock()
 
@@ -610,6 +620,19 @@ def diag():
     return jsonify(out)
 
 
+_GENUS_CACHE: dict = {}
+
+
+def _genus_index(infer):
+    """(noms de gènere, índex de gènere per classe) — calculat un sol cop per model."""
+    key = id(infer)
+    if key not in _GENUS_CACHE:
+        names = sorted({sp.split()[0] for sp in infer.idx_to_class})
+        pos = {g: i for i, g in enumerate(names)}
+        _GENUS_CACHE[key] = (names, np.array([pos[sp.split()[0]] for sp in infer.idx_to_class]))
+    return _GENUS_CACHE[key]
+
+
 @APP.route("/predict", methods=["POST"])
 def predict():
     if "image" not in request.files:
@@ -630,12 +653,14 @@ def predict():
             resp.headers["Retry-After"] = "30"
             return resp, 503
 
-    file = request.files["image"]
-    try:
-        img = _open_image(file.stream)
-    except Exception as e:
-        log.warning(f"Imatge invàlida: {e!r}")
-        return jsonify({"error": "Invalid image", "detail": str(e)}), 400
+    # Una o diverses fotos del MATEIX bolet (barret, làmines, peu…): camp 'image' repetit
+    imgs = []
+    for file in request.files.getlist("image")[:MAX_PHOTOS]:
+        try:
+            imgs.append(_open_image(file.stream))
+        except Exception as e:
+            log.warning(f"Imatge invàlida: {e!r}")
+            return jsonify({"error": "Invalid image", "detail": str(e)}), 400
 
     # Camps opcionals de context
     def _opt_float(name):
@@ -674,10 +699,13 @@ def predict():
         return resp, 503
 
     try:
-        image_probs = infer.predict_probs(img)
+        per_photo = [infer.predict_probs(im) for im in imgs]
     except Exception as e:
         log.exception("Error d'inferència")
         return jsonify({"error": "Inference error", "detail": str(e)}), 500
+    # Fusió entre fotos: mitjana de probabilitats (robusta si una foto és dolenta)
+    image_probs = per_photo[0] if len(per_photo) == 1 else np.mean(per_photo, axis=0)
+    image_probs = image_probs / max(float(image_probs.sum()), 1e-12)
 
     use_prior = (
         PRIOR is not None
@@ -712,8 +740,17 @@ def predict():
             item["prior_prob"] = float(priors[int(i)])
         predictions.append(item)
 
+    # Gènere més probable: suma de les probabilitats de les seves espècies.
+    # Molt més fiable que l'espècie quan la foto és ambigua.
+    gnames, gidx = _genus_index(infer)
+    gprob = np.bincount(gidx, weights=np.asarray(fused, dtype=np.float64), minlength=len(gnames))
+    genera = [{"genus": gnames[int(j)], "prob": float(gprob[int(j)]),
+               "n_species": int((gidx == j).sum())} for j in np.argsort(-gprob)[:3]]
+
     response = {
         "predictions": predictions,
+        "genera": genera,
+        "num_photos": len(imgs),
         "num_classes": len(infer.idx_to_class),
         "context_used": use_prior,
     }
@@ -722,8 +759,8 @@ def predict():
             "month": month, "lat": lat, "lon": lon, "alpha": alpha, "beta": beta
         }
     log.info(
-        f"predict: top1={predictions[0]['class_name']} "
-        f"prob={predictions[0]['prob']:.3f} context={use_prior}"
+        f"predict: top1={predictions[0]['class_name']} prob={predictions[0]['prob']:.3f} "
+        f"genus={genera[0]['genus']} {genera[0]['prob']:.3f} photos={len(imgs)} context={use_prior}"
     )
     return jsonify(response)
 

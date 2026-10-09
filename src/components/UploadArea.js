@@ -1,38 +1,67 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, Image as ImageIcon, Camera } from 'lucide-react';
+import { Upload, Image as ImageIcon, Camera, Plus, X } from 'lucide-react';
 import { useT } from '../context/LanguageContext';
+import PhotoCropper from './PhotoCropper';
 
-const UploadArea = ({ onImageSelect }) => {
+export const MAX_PHOTOS = 3;
+
+/**
+ * Selecció de fotos. Es poden afegir fins a MAX_PHOTOS fotos del MATEIX bolet
+ * (barret, làmines, peu…), cadascuna amb el seu enquadrament.
+ *  - photosRef.current = [{ file, crop }]  (sempre actualitzat; el llegeix App en analitzar)
+ *  - onCountChange(n) quan canvia el nombre de fotos
+ */
+const UploadArea = ({ photosRef, onCountChange }) => {
   const { t } = useT();
   const [dragActive, setDragActive] = useState(false);
-  const [selectedImage, setSelectedImage] = useState(null);
+  const [photos, setPhotos] = useState([]);       // { id, file, url }
+  const [active, setActive] = useState(0);
+  const crops = useRef(new Map());
+  const nextId = useRef(1);
+
+  const publish = (list) => {
+    if (photosRef) photosRef.current = list.map((p) => ({ file: p.file, crop: crops.current.get(p.id) || null }));
+  };
+
+  useEffect(() => {
+    publish(photos);
+    if (onCountChange) onCountChange(photos.length);
+  }, [photos]); // eslint-disable-line
+
+  const addFile = (file) => {
+    if (!file || !file.type.startsWith('image/')) return;
+    setPhotos((prev) => {
+      if (prev.length >= MAX_PHOTOS) return prev;
+      const next = [...prev, { id: nextId.current++, file, url: URL.createObjectURL(file) }];
+      setActive(next.length - 1);
+      return next;
+    });
+  };
+
+  const removeAt = (i) => {
+    setPhotos((prev) => {
+      const gone = prev[i];
+      if (gone) { URL.revokeObjectURL(gone.url); crops.current.delete(gone.id); }
+      const next = prev.filter((_, j) => j !== i);
+      setActive((a) => Math.max(0, Math.min(next.length - 1, a > i ? a - 1 : a)));
+      return next;
+    });
+  };
 
   const handleDrag = (e) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(e.type === 'dragenter' || e.type === 'dragover');
   };
-
-  const processFile = (file) => {
-    if (!file || !file.type.startsWith('image/')) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setSelectedImage(ev.target.result);
-      onImageSelect(file);
-    };
-    reader.readAsDataURL(file);
-  };
-
   const handleDrop = (e) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    processFile(e.dataTransfer.files?.[0]);
+    addFile(e.dataTransfer.files?.[0]);
   };
-
   const handleFileSelect = (e) => {
-    processFile(e.target.files?.[0]);
+    addFile(e.target.files?.[0]);
     e.target.value = ''; // permet tornar a triar el mateix fitxer
   };
 
@@ -43,31 +72,53 @@ const UploadArea = ({ onImageSelect }) => {
       }`}
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      onDragEnter={handleDrag}
-      onDragLeave={handleDrag}
-      onDragOver={handleDrag}
-      onDrop={handleDrop}
+      onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
     >
       {/* Inputs: galeria/arxius i càmera (mòbil) */}
-      <input id="file-upload" type="file" accept="image/*"
-        onChange={handleFileSelect} className="hidden" />
+      <input id="file-upload" type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
       <input id="camera-upload" type="file" accept="image/*" capture="environment"
         onChange={handleFileSelect} className="hidden" />
 
-      {selectedImage ? (
-        <motion.div className="flex flex-col items-center gap-3"
-          initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}>
-          <img
-            src={selectedImage}
-            alt=""
-            className="w-full max-w-[280px] aspect-square object-cover rounded-card border border-sage-200"
-          />
-          <p className="text-muted text-sm">{t('photoReady')}</p>
-          <label htmlFor="file-upload"
-            className="text-sm font-medium text-forest-700 underline underline-offset-2 cursor-pointer hover:text-forest-900">
-            {t('changePhoto')}
-          </label>
-        </motion.div>
+      {photos.length > 0 ? (
+        <div className="flex flex-col items-center gap-3">
+          {/* Un enquadrador per foto (només es mostra l'activa; les altres conserven l'enquadrament) */}
+          {photos.map((p, i) => (
+            <div key={p.id} className={i === active ? 'w-full' : 'hidden'}>
+              <PhotoCropper src={p.url}
+                onCropChange={(c) => { crops.current.set(p.id, c); publish(photos); }} />
+            </div>
+          ))}
+
+          {/* Tira de miniatures + afegir */}
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            {photos.map((p, i) => (
+              <div key={p.id} className="relative">
+                <button type="button" onClick={() => setActive(i)}
+                  className={`block w-14 h-14 rounded-input overflow-hidden border-2 transition-colors ${
+                    i === active ? 'border-forest-900' : 'border-sage-200'}`}
+                  aria-label={`${t('photoN')} ${i + 1}`}>
+                  <img src={p.url} alt="" className="w-full h-full object-cover" draggable={false} />
+                </button>
+                <button type="button" onClick={() => removeAt(i)} aria-label={t('removePhoto')}
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-pill bg-white border border-sage-200
+                             text-muted hover:text-alert flex items-center justify-center shadow-sm">
+                  <X size={12} strokeWidth={2.2} />
+                </button>
+              </div>
+            ))}
+            {photos.length < MAX_PHOTOS && (
+              <label htmlFor="file-upload"
+                className="w-14 h-14 rounded-input border-2 border-dashed border-sage-200 text-forest-700 cursor-pointer
+                           flex flex-col items-center justify-center hover:bg-cream-100 transition-colors"
+                aria-label={t('addPhoto')}>
+                <Plus size={18} strokeWidth={1.8} />
+              </label>
+            )}
+          </div>
+          <p className="text-xs text-muted leading-relaxed max-w-[340px]">
+            {photos.length < MAX_PHOTOS ? t('multiPhotoHint') : t('photoReady')}
+          </p>
+        </div>
       ) : (
         <>
           <div className="mx-auto w-14 h-14 bg-cream-100 border border-sage-200 rounded-btn

@@ -7,16 +7,21 @@ const EDIBLE_SPECIES = [
 ];
 
 const MAX_SIDE = 1024;          // el model treballa a 224 px: 1024 és de sobres
-const RETRY_TOTAL_MS = 150000;  // el servidor gratuït pot trigar 1-2 min a despertar-se
+const RETRY_TOTAL_MS = 150000;
+// Llindars sobre la probabilitat calibrada (vegeu l'anàlisi de calibratge)
+const CONF_SURE = 0.7;   // amb T=0.75, ≥0.7 encerta ~75-95 % en distribució
+const CONF_LIKELY = 0.4; // 0.4-0.7 encerta ~40-55 %: «probable», amb avís  // el servidor gratuït pot trigar 1-2 min a despertar-se
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * Redueix la foto al navegador (aplicant l'orientació EXIF) abans de pujar-la:
- * pujada molt més ràpida des del mòbil i molta menys memòria al servidor.
+ * Prepara la foto al navegador abans de pujar-la: retalla la regió que l'usuari
+ * ha enquadrat (des de la foto ORIGINAL a resolució completa, aplicant
+ * l'orientació EXIF) i la redueix a MAX_SIDE. Un bolet petit dins d'una foto de
+ * 12 MP arriba així al model com un primer pla nítid.
  * Si alguna cosa falla, retorna el fitxer original (el servidor també la redueix).
  */
-export const downscaleImage = async (file) => {
+export const downscaleImage = async (file, crop = null) => {
   if (!file || !file.type || !file.type.startsWith("image/")) return file;
   if (typeof document === "undefined" || typeof URL === "undefined") return file;
   const url = URL.createObjectURL(file);
@@ -29,15 +34,25 @@ export const downscaleImage = async (file) => {
     });
     const w0 = img.naturalWidth, h0 = img.naturalHeight;
     if (!w0 || !h0) return file;
-    const scale = Math.min(1, MAX_SIDE / Math.max(w0, h0));
-    if (scale === 1 && file.type === "image/jpeg" && file.size < 1.5e6) return file;
-    const w = Math.max(1, Math.round(w0 * scale));
-    const h = Math.max(1, Math.round(h0 * scale));
+
+    // Regió d'origen: el retall triat per l'usuari (normalitzat) o la imatge sencera
+    let sx = 0, sy = 0, sw = w0, sh = h0;
+    const hasCrop = crop && crop.w > 0 && crop.h > 0 && (crop.w < 0.999 || crop.h < 0.999);
+    if (hasCrop) {
+      sx = Math.max(0, Math.round(crop.x * w0));
+      sy = Math.max(0, Math.round(crop.y * h0));
+      sw = Math.min(w0 - sx, Math.round(crop.w * w0));
+      sh = Math.min(h0 - sy, Math.round(crop.h * h0));
+    }
+    const scale = Math.min(1, MAX_SIDE / Math.max(sw, sh));
+    if (!hasCrop && scale === 1 && file.type === "image/jpeg" && file.size < 1.5e6) return file;
+    const w = Math.max(1, Math.round(sw * scale));
+    const h = Math.max(1, Math.round(sh * scale));
     const canvas = document.createElement("canvas");
     canvas.width = w;
     canvas.height = h;
-    canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-    const blob = await new Promise((r) => canvas.toBlob(r, "image/jpeg", 0.9));
+    canvas.getContext("2d").drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
+    const blob = await new Promise((r) => canvas.toBlob(r, "image/jpeg", 0.92));
     return blob ? new File([blob], "photo.jpg", { type: "image/jpeg" }) : file;
   } catch {
     return file;
@@ -59,14 +74,17 @@ export const downscaleImage = async (file) => {
  * @param {number} [context.beta] - pes del prior (default 0.5)
  * @param {Function} [context.onStatus] - callback amb text d'estat per a la UI
  */
-export const analyzeMushroom = async (imageFile, context = {}) => {
+export const analyzeMushroom = async (input, context = {}) => {
   const onStatus = typeof context.onStatus === "function" ? context.onStatus : () => {};
+  // Accepta un File o una llista [{ file, crop }] (diverses fotos del mateix bolet)
+  const photos = Array.isArray(input) ? input : [{ file: input, crop: context.crop || null }];
 
   onStatus("Preparant la foto...");
-  const upload = await downscaleImage(imageFile);
-
   const formData = new FormData();
-  formData.append("image", upload, upload.name || "photo.jpg");
+  for (let i = 0; i < photos.length; i += 1) {
+    const upload = await downscaleImage(photos[i].file, photos[i].crop);
+    formData.append("image", upload, `photo${i + 1}.jpg`);
+  }
 
   const month = context.month ?? new Date().getMonth() + 1;
   formData.append("month", String(month));
@@ -111,14 +129,24 @@ export const analyzeMushroom = async (imageFile, context = {}) => {
       throw new Error("No s'han rebut prediccions del model");
     }
 
-    // Fitxa de les 3 primeres espècies (nom comú, foto iNaturalist, comestibilitat
-    // curada i consells) — opcional: si falla, la identificació es mostra igualment.
-    const infos = await fetchSpeciesInfo(predictions.slice(0, 3).map((p) => p.class_name), context.lang);
+    // Fitxa dels 5 candidats (nom comú, foto iNaturalist, comestibilitat curada i
+    // consells) — opcional: si falla, la identificació es mostra igualment.
+    const infos = await fetchSpeciesInfo(predictions.slice(0, 5).map((p) => p.class_name), context.lang);
     const info = infos[top.class_name] || {};
-    const edibility = info.edibility
-      || (EDIBLE_SPECIES.includes(top.class_name) ? "edible" : "unknown");
+    const edibilityOf = (name) => infos[name]?.edibility
+      || (EDIBLE_SPECIES.includes(name) ? "edible" : "unknown");
+    const candidates = predictions.slice(0, 5).map((p) => ({
+      name: p.class_name,
+      prob: p.prob,
+      commonName: infos[p.class_name]?.common_name || "",
+      photoUrl: infos[p.class_name]?.photo_url || "",
+      edibility: edibilityOf(p.class_name),
+    }));
+    // Nivell de certesa (probabilitats calibrades al servidor)
     const second = predictions[1]?.prob ?? 0;
-    const uncertain = top.prob < 0.5 || top.prob - second < 0.15;
+    const level = top.prob >= CONF_SURE && top.prob - second >= 0.15 ? "sure"
+      : top.prob >= CONF_LIKELY ? "likely" : "unsure";
+    const genus = (data.genera || [])[0] || null;
 
     return {
       ok: true,
@@ -128,16 +156,16 @@ export const analyzeMushroom = async (imageFile, context = {}) => {
       confidence: top.prob,
       imageProb: top.image_prob,
       priorProb: top.prior_prob,
-      edibility,
-      edible: edibility === "edible",
+      edibility: edibilityOf(top.class_name),
+      edible: edibilityOf(top.class_name) === "edible",
       tips: Array.isArray(info.tips) ? info.tips : [],
-      uncertain,
-      alternatives: predictions.slice(1, 4).map((p) => ({
-        name: p.class_name,
-        prob: p.prob,
-        commonName: infos[p.class_name]?.common_name || "",
-        edibility: infos[p.class_name]?.edibility || "unknown",
-      })),
+      level,
+      uncertain: level !== "sure",
+      candidates,
+      alternatives: candidates.slice(1, 4),
+      genus: genus && genus.n_species > 1 ? genus : null,
+      anyToxic: candidates.some((c) => c.edibility === "toxic" || c.edibility === "caution"),
+      numPhotos: data.num_photos || photos.length,
       contextUsed: data.context_used === true,
     };
   } catch (error) {

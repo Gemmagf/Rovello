@@ -10,6 +10,21 @@ export const translations = {
   //  CATALÀ (default)
   // ════════════════════════════════════════════════════════════════════════════
   ca: {
+    photoN: "Foto",
+    removePhoto: "Treu la foto",
+    addPhoto: "Afegeix una altra foto",
+    multiPhotoHint: "Consell: afegeix amb «+» una foto de les làmines i una del peu del mateix bolet; amb 2–3 fotos la identificació millora.",
+    notSureTitle: "No n'estic segur",
+    notSureDesc: "Amb aquesta foto no puc distingir bé l'espècie. Aquests són els candidats més probables:",
+    genusHint: "Probablement del gènere {genus} ({pct})",
+    candidatesTitle: "Candidats",
+    toxicAmongCandidates: "Atenció: entre els candidats hi ha espècies tòxiques o delicades.",
+    howToImprove: "Com millorar la identificació",
+    improveTips: ["Enquadra el bolet perquè ompli el cercle (fes zoom).", "Afegeix una foto de les làmines o porus i una del peu sencer amb la base.", "Bona llum i enfocament; evita ombres dures i el flaix."],
+    likelyNote: "Identificació probable però no segura: contrasta-la amb els altres candidats.",
+    photosUsed: "{n} fotos combinades",
+    cropHint: "Arrossega i fes zoom perquè el bolet ompli el cercle: com més a prop, millor identificació.",
+    photoReady: "Enquadra el bolet i prem «Identificar bolet».",
     serverSleeping: "El servidor gratuït s'adorm quan no s'usa; només triga la primera vegada.",
     // Normativa de recol·lecció (LocalRules)
     rulesTitle: "Normativa de recol·lecció",
@@ -37,7 +52,6 @@ export const translations = {
     choosePhoto: "Selecciona foto",
     takePhoto: "Fes una foto",
     changePhoto: "Canviar foto",
-    photoReady: "Foto preparada. Prem «Identificar bolet».",
     dragHere: "o arrossega-la aquí",
     analyzeBtn: "Identificar bolet",
     analyzing: "Analitzant…",
@@ -194,6 +208,21 @@ export const translations = {
   //  ENGLISH
   // ════════════════════════════════════════════════════════════════════════════
   en: {
+    photoN: "Photo",
+    removePhoto: "Remove photo",
+    addPhoto: "Add another photo",
+    multiPhotoHint: "Tip: use “+” to add a photo of the gills and one of the stem of the same mushroom; 2–3 photos improve the identification.",
+    notSureTitle: "I'm not sure",
+    notSureDesc: "I can't tell the species reliably from this photo. These are the most likely candidates:",
+    genusHint: "Probably genus {genus} ({pct})",
+    candidatesTitle: "Candidates",
+    toxicAmongCandidates: "Warning: the candidates include toxic or risky species.",
+    howToImprove: "How to improve the identification",
+    improveTips: ["Frame the mushroom so it fills the circle (zoom in).", "Add a photo of the gills or pores and one of the whole stem with its base.", "Good light and focus; avoid harsh shadows and flash."],
+    likelyNote: "Probable but not certain: compare it with the other candidates.",
+    photosUsed: "{n} photos combined",
+    cropHint: "Drag and zoom so the mushroom fills the circle: the closer, the better the identification.",
+    photoReady: "Frame the mushroom and tap “Identify mushroom”.",
     serverSleeping: "The free server sleeps when idle; only the first request is slow.",
     // Normativa de recol·lecció (LocalRules)
     rulesTitle: "Picking regulations",
@@ -221,7 +250,6 @@ export const translations = {
     choosePhoto: "Choose photo",
     takePhoto: "Take a photo",
     changePhoto: "Change photo",
-    photoReady: "Photo ready. Tap “Identify mushroom”.",
     dragHere: "or drag it here",
     analyzeBtn: "Identify mushroom",
     analyzing: "Analysing…",
@@ -368,6 +396,21 @@ export const translations = {
   //  DEUTSCH
   // ════════════════════════════════════════════════════════════════════════════
   de: {
+    photoN: "Foto",
+    removePhoto: "Foto entfernen",
+    addPhoto: "Weiteres Foto hinzufügen",
+    multiPhotoHint: "Tipp: füge mit „+“ ein Foto der Lamellen und eines vom Stiel desselben Pilzes hinzu; mit 2–3 Fotos wird die Bestimmung besser.",
+    notSureTitle: "Ich bin nicht sicher",
+    notSureDesc: "Anhand dieses Fotos kann ich die Art nicht zuverlässig bestimmen. Das sind die wahrscheinlichsten Kandidaten:",
+    genusHint: "Wahrscheinlich Gattung {genus} ({pct})",
+    candidatesTitle: "Kandidaten",
+    toxicAmongCandidates: "Achtung: unter den Kandidaten sind giftige oder heikle Arten.",
+    howToImprove: "So wird die Bestimmung besser",
+    improveTips: ["Pilz so einrahmen, dass er den Kreis ausfüllt (zoomen).", "Ein Foto der Lamellen oder Poren und eines vom ganzen Stiel mit Basis hinzufügen.", "Gutes Licht und Schärfe; harte Schatten und Blitz vermeiden."],
+    likelyNote: "Wahrscheinlich, aber nicht sicher: mit den anderen Kandidaten vergleichen.",
+    photosUsed: "{n} Fotos kombiniert",
+    cropHint: "Ziehen und zoomen, bis der Pilz den Kreis ausfüllt: je näher, desto besser die Bestimmung.",
+    photoReady: "Pilz einrahmen und auf „Pilz bestimmen“ tippen.",
     serverSleeping: "Der kostenlose Server schläft bei Inaktivität; nur die erste Anfrage dauert länger.",
     // Normativa de recol·lecció (LocalRules)
     rulesTitle: "Sammelbestimmungen",
@@ -395,7 +438,6 @@ export const translations = {
     choosePhoto: "Foto auswählen",
     takePhoto: "Foto aufnehmen",
     changePhoto: "Foto ändern",
-    photoReady: "Foto bereit. Tippe auf „Pilz bestimmen“.",
     dragHere: "oder hierher ziehen",
     analyzeBtn: "Pilz bestimmen",
     analyzing: "Wird analysiert…",
